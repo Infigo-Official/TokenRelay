@@ -22,6 +22,7 @@ bld/
 [Oo]bj/
 [Ll]og/
 [Ll]ogs/
+dist/
 
 # .NET Core
 project.lock.json
@@ -47,6 +48,21 @@ CodeCoverage/
 # MSTest test Results
 [Tt]est[Rr]esult*/
 [Bb]uild[Ll]og.*
+
+# Security: Exclude sensitive configuration files
+tokenrelay.json
+docker/config/tokenrelay.json
+.env
+docker/.env
+
+# Docker volumes and logs
+docker/uploads/
+docker/logs/
+
+# Docker certificates (keep directory structure but ignore actual cert files)
+docker/certs/*.crt
+docker/certs/*.pem
+docker/certs/*.cer
 
 # NUnit
 *.VisualState.xml

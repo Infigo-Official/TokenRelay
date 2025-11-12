@@ -1,0 +1,60 @@
+{  
+  "proxy": {
+    "auth": {
+      "tokens": ["your-secure-proxy-token-here"],
+      "encryptionKey": "change-this-32-character-key-here"
+    },
+    "mode": "direct",
+    "timeoutSeconds": 300,
+    "logBufferMinutes": 20,
+    "permissions": {
+      "allowTargetConfigOverride": false,
+      "allowLogRetrieval": true,
+      "allowLogLevelAdjustment": true
+    },
+    "targets": {
+      "httpbin": {
+        "endpoint": "https://httpbin.org",
+        "healthCheckUrl": "https://httpbin.org/status/200",
+        "description": "HTTPBin service for testing HTTP requests and responses",
+        "headers": {
+          "User-Agent": "TokenRelay/1.0.0",
+          "Accept": "application/json"
+        }
+      },
+      "jsonplaceholder": {
+        "endpoint": "https://jsonplaceholder.typicode.com",
+        "healthCheckUrl": "https://jsonplaceholder.typicode.com/posts/1",
+        "description": "JSONPlaceholder API for testing",
+        "headers": {
+          "Accept": "application/json"
+        }
+      },
+      "internal-api": {
+        "endpoint": "https://internal-api.company.com",
+        "healthCheckUrl": "https://internal-api.company.com/health",
+        "description": "Internal company API",
+        "headers": {
+          "Authorization": "Bearer api-key-here",
+          "X-API-Version": "v1"
+        }
+      }
+    }
+  },
+  "plugins": {
+    "fileStorage": {
+      "enabled": true,
+      "settings": {
+        "destinations.documents": "C:\\uploads\\documents",
+        "destinations.images": "C:\\uploads\\images",
+        "destinations.temp": "C:\\uploads\\temp"
+      }
+    }
+  },
+  "logging": {
+    "level": "Information",
+    "destinations": [
+      "console"
+    ]
+  }
+}

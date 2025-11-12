@@ -1,0 +1,60 @@
+# Example Certificate File
+
+# This is an example showing the format of a PEM-encoded certificate
+# Replace this content with your actual certificate
+
+# To add your certificate:
+# 1. Get your certificate in PEM format (usually from your CA or via openssl)
+# 2. Create a file with .crt extension (e.g., my-ca.crt)
+# 3. Paste the certificate content (including the BEGIN/END lines)
+# 4. Save the file in this directory
+# 5. Restart the container: docker-compose restart
+
+# Example format (this is NOT a real certificate):
+# -----BEGIN CERTIFICATE-----
+# MIIDXTCCAkWgAwIBAgIJAKHHCgVZU2XtMA0GCSqGSIb3DQEBCwUAMEUxCzAJBgNV
+# BAYTAkFVMRMwEQYDVQQIDApTb21lLVN0YXRlMSEwHwYDVQQKDBhJbnRlcm5ldCBX
+# aWRnaXRzIFB0eSBMdGQwHhcNMjAwMTAxMDAwMDAwWhcNMzAwMTAxMDAwMDAwWjBF
+# MQswCQYDVQQGEwJBVTETMBEGA1UECAwKU29tZS1TdGF0ZTEhMB8GA1UECgwYSW50
+# ZXJuZXQgV2lkZ2l0cyBQdHkgTHRkMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIB
+# CgKCAQEA1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTU
+# VWXYZabcdefghijklmnopqrstuvwxyz1234567890ABCDEFGHIJKLMNOPQRSTUVW
+# XYZabcdefghijklmnopqrstuvwxyz1234567890ABCDEFGHIJKLMNOPQRSTUVWXYZ
+# abcdefghijklmnopqrstuvwxyz1234567890ABCDEFGHIJKLMNOPQRSTUVWXYZABC
+# DEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz1234567890ABCDEF
+# GHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz1234567890ABCDEFGHI
+# JKLMNOPQRSTUVWXYZ1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKL
+# MNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz1234567890ABCDEFGHIJKLMNO
+# PQRSTUVWXYZabcdefghijklmnopqrstuvwxyz1234567890ABCDEFGHIJKLMNOPQRS
+# TUVWXYZabcdefghijklmnopqrstuvwxyz1234567890ABCDEFGHIJKLMNOPQRSTUVW
+# XYZabcdefghijklmnopqrstuvwxyz1234567890ABCDEFGHIJKLMNOPQRSTUVWXYZA
+# BCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz1234567890ABCDE
+# FGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz1234567890ABCDEFGHI
+# JKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz1234567890ABCDEFGHIJKLM
+# NOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz1234567890ABCDEFGHIJKLMNOPQ
+# RSTUVWXYZabcdefghijklmnopqrstuvwxyz1234567890ABCDEFGHIJKLMNOPQRSTU
+# VWXYZabcdefghijklmnopqrstuvwxyz1234567890ABCDEFGHIJKLMNOPQRSTUVWXY
+# ZabcdefghijklmnopqrstuvwxyzQIDAQABo1AwTjAdBgNVHQ4EFgQU1234567890ab
+# cdefghijklmnopqrMB8GA1UdIwQYMBaAFNM1234567890abcdefghijklmnopqrMA
+# wGA1UdEwQFMAMBAf8wDQYJKoZIhvcNAQELBQADggEBAAbcdefghijklmnopqrstuv
+# wxyz1234567890ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxy
+# z1234567890ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz12
+# 34567890ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz123456
+# 7890ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz1234567890
+# ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz1234567890ABCD
+# EFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz1234567890ABCDEFGH
+# IJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz1234567890ABCDEFGHIJKL
+# MNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz1234567890ABCDEFGHIJKLMNOP
+# QRSTUVWXYZabcdefghijklmnopqrstuvwxyz1234567890ABCDEFGHIJKLMNOPQRST
+# UVWXYZabcdefghijklmnopqrstuvwxyz1234567890ABCDEFGHIJKLMNOPQRSTUVWX
+# YZabcdefghijklmnopqrstuvwxyz1234567890ABCDEFGHIJKLMNOPQRSTUVWXYZ==
+# -----END CERTIFICATE-----
+
+# How to export a certificate from a website:
+# openssl s_client -showcerts -connect example.com:443 </dev/null 2>/dev/null | openssl x509 -outform PEM > example.crt
+
+# How to convert DER to PEM:
+# openssl x509 -inform der -in certificate.cer -out certificate.crt
+
+# How to view certificate details:
+# openssl x509 -in certificate.crt -text -noout

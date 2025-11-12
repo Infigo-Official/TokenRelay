@@ -1,0 +1,38 @@
+# Exclude sensitive configuration files
+tokenrelay.json
+config/tokenrelay.json
+../TokenRelay/tokenrelay.json
+
+# Exclude logs and temporary files
+logs/
+uploads/
+*.log
+*.tmp
+
+# Exclude development and build artifacts
+bin/
+obj/
+Debug/
+Release/
+.vs/
+.vscode/
+
+# Exclude environment files
+.env
+.env.*
+!.env.template
+
+# Exclude deployment scripts (not needed in container)
+deploy.ps1
+deploy.sh
+docker-compose.yml
+README.md
+QUICK-REFERENCE.md
+
+# Exclude git files
+.git/
+.gitignore
+
+# Exclude test files
+test-*
+tests/

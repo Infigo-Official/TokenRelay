@@ -1,0 +1,48 @@
+services:
+  tokenrelay:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: "${CONTAINER_NAME:-tokenrelay}"
+    ports:
+      - "${TOKENRELAY_EXTERNAL_PORT:-5163}:${TOKENRELAY_PORT:-80}"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=${ASPNETCORE_ENVIRONMENT:-Production}
+      - ASPNETCORE_URLS=http://+:${TOKENRELAY_PORT:-80}
+      - ConfigPath=/app/tokenrelay.json
+      - TOKENRELAY_CONFIG_MODE=${TOKENRELAY_CONFIG_MODE:-file}
+      - TOKENRELAY_CONFIG_JSON=${TOKENRELAY_CONFIG_JSON:-}
+    volumes:
+      # Mount configuration file (when using file-based config)
+      # WARNING: Create your own tokenrelay.json with proper credentials!
+      # You can copy tokenrelay.template.json as a starting point
+      - ${TOKENRELAY_CONFIG_PATH:-./config/tokenrelay.json}:/app/tokenrelay.json:ro
+      # Mount upload directory
+      - ${TOKENRELAY_UPLOADS_PATH:-./uploads}:/app/uploads
+      # Mount logs directory
+      - ${TOKENRELAY_LOGS_PATH:-./logs}:/app/logs
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:${TOKENRELAY_PORT:-80}/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Optional: Nginx reverse proxy for production
+  nginx:
+    image: nginx:alpine
+    container_name: "${NGINX_CONTAINER_NAME:-tokenrelay-nginx}"
+    ports:
+      - "${NGINX_EXTERNAL_PORT:-8080}:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - tokenrelay
+    restart: unless-stopped
+    profiles:
+      - "with-nginx"
+
+networks:
+  default:
+    name: tokenrelay-network

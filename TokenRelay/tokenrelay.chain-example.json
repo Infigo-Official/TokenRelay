@@ -1,0 +1,37 @@
+{  
+  "proxy": {
+    "auth": {
+      "tokens": ["your-secure-proxy-token-here"],
+      "encryptionKey": "change-this-32-character-key-here"
+    },
+    "mode": "chain",
+    "timeoutSeconds": 300,
+    "logBufferMinutes": 20,
+    "permissions": {
+      "allowTargetConfigOverride": false,
+      "allowLogRetrieval": true,
+      "allowLogLevelAdjustment": true
+    },
+    "chain": {
+      "targetProxy": {
+        "endpoint": "https://downstream-tokenrelay.example.com",
+        "healthCheckUrl": "/health",
+        "description": "Downstream TokenRelay proxy instance",
+        "headers": {
+          "Authorization": "Bearer your-downstream-token-here"
+        }
+      }
+    },
+    "targets": {
+      "comment": "These targets are ignored in chain mode - the downstream proxy handles target resolution"
+    }
+  },
+  "plugins": {   
+  },
+  "logging": {
+    "level": "Information",
+    "destinations": [
+      "console"
+    ]
+  }
+}

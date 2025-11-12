@@ -1,0 +1,52 @@
+[Unit]
+Description=TokenRelay Proxy Service
+Documentation=https://github.com/your-org/TokenRelay
+After=network.target
+
+[Service]
+Type=notify
+# Set the timeout for start operations
+TimeoutStartSec=30
+# Set the timeout for stop operations
+TimeoutStopSec=30
+
+# User and group to run the service under
+User=tokenrelay
+Group=tokenrelay
+
+# Working directory for the service
+WorkingDirectory=/opt/tokenrelay
+
+# Command to start the service
+# For self-contained deployment:
+ExecStart=/opt/tokenrelay/TokenRelay
+# For framework-dependent deployment, uncomment the line below and comment the line above:
+# ExecStart=/usr/bin/dotnet /opt/tokenrelay/TokenRelay.dll
+
+# Restart policy
+Restart=always
+RestartSec=10
+
+# Signal to use when stopping the service
+KillSignal=SIGINT
+
+# Identifier for syslog
+SyslogIdentifier=tokenrelay
+
+# Environment variables
+Environment=ASPNETCORE_ENVIRONMENT=Production
+Environment=ASPNETCORE_URLS=http://localhost:5163
+Environment=ConfigPath=/opt/tokenrelay/tokenrelay.json
+
+# Security settings
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/opt/tokenrelay/uploads /opt/tokenrelay/logs
+
+# Resource limits
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,44 @@
+{
+  "proxy": {
+    "auth": {
+      "tokens": [
+        "your-auth-token-here"
+      ],
+      "encryptionKey": "change-this-32-character-key-here"
+    },
+    "timeoutSeconds": 300,
+    "logBufferMinutes": 20,
+    "statusVerbosity": "endpoints",
+    "permissions": {
+      "allowTargetConfigOverride": false,
+      "allowLogRetrieval": true,
+      "allowLogLevelAdjustment": true
+    },
+    "targets": {
+      "example": {
+        "endpoint": "https://api.example.com",
+        "healthCheckUrl": "https://api.example.com/health",
+        "description": "Example API endpoint - replace with your actual endpoints",
+        "enabled": true
+      }
+    }
+  },
+  "plugins": {
+    "fileStorage": {
+      "enabled": false,
+      "settings": {
+        "destinations.documents": "/app/uploads/documents",
+        "destinations.images": "/app/uploads/images",
+        "destinations.temp": "/app/uploads/temp",
+        "credentials.username": "serviceaccount",
+        "credentials.password": "your-encrypted-password"
+      }
+    }
+  },
+  "logging": {
+    "level": "Information",
+    "destinations": [
+      "console"
+    ]
+  }
+}
