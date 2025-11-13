@@ -230,6 +230,16 @@ public class OAuthService : IOAuthService
                 AcquiredAt = DateTime.UtcNow
             };
 
+            // Validate that we have a valid access token
+            if (string.IsNullOrWhiteSpace(token.AccessToken))
+            {
+                _logger.LogError("OAuthService: Invalid token response for target '{TargetName}' - access_token is null or empty. Response: {Response}",
+                    targetName, responseContent);
+                Interlocked.Increment(ref _tokenAcquisitionFailures);
+                throw new InvalidOperationException(
+                    $"Invalid token response from endpoint: access_token is null or empty. Response: {responseContent}");
+            }
+
             _logger.LogDebug("OAuthService: Token details - Type: '{TokenType}', Expires in: {ExpiresIn}s, Expires at: {ExpiresAt}",
                 token.TokenType, token.ExpiresIn, token.ExpiresAt);
 
@@ -289,11 +299,16 @@ public class OAuthService : IOAuthService
         return tokenEndpoint;
     }
 
+    /// <summary>
+    /// Validates target configuration for OAuth authentication.
+    /// Performs basic validation and delegates to grant-type-specific validation.
+    /// </summary>
     private void ValidateTargetConfig(string targetName, TargetConfig target)
     {
         if (target == null)
         {
-            throw new ArgumentNullException(nameof(target));
+            throw new ArgumentNullException(nameof(target),
+                $"Target configuration for '{targetName}' cannot be null");
         }
 
         if (!target.AuthType.Equals("oauth", StringComparison.OrdinalIgnoreCase))
@@ -308,25 +323,134 @@ public class OAuthService : IOAuthService
                 $"Target '{targetName}' with authType='oauth' must have authData configured");
         }
 
-        // Validate required OAuth fields (token_endpoint is optional, will be built from target.Endpoint if not provided)
-        if (!target.AuthData.ContainsKey("grant_type") || string.IsNullOrWhiteSpace(target.AuthData["grant_type"]))
+        // Delegate to OAuth-specific validation
+        ValidateOAuthConfiguration(targetName, target.AuthData);
+    }
+
+    /// <summary>
+    /// Validates OAuth-specific configuration including grant-type-specific requirements.
+    /// Consolidated validation logic for all OAuth grant types.
+    /// </summary>
+    private void ValidateOAuthConfiguration(string targetName, Dictionary<string, string> authData)
+    {
+        // Validate grant_type is present (required for all OAuth flows)
+        if (!authData.ContainsKey("grant_type") || string.IsNullOrWhiteSpace(authData["grant_type"]))
         {
             throw new ArgumentException(
                 $"Target '{targetName}' OAuth configuration missing required field: 'grant_type'");
         }
 
-        var grantType = target.AuthData["grant_type"].ToLowerInvariant();
-        if (grantType == "password")
+        var grantType = authData["grant_type"].ToLowerInvariant();
+
+        // Perform grant-type-specific validation
+        switch (grantType)
         {
-            var passwordGrantRequired = new[] { "username", "password", "client_id" };
-            foreach (var field in passwordGrantRequired)
+            case "password":
+                ValidatePasswordGrant(targetName, authData);
+                break;
+
+            case "client_credentials":
+                ValidateClientCredentialsGrant(targetName, authData);
+                break;
+
+            case "authorization_code":
+                ValidateAuthorizationCodeGrant(targetName, authData);
+                break;
+
+            case "refresh_token":
+                ValidateRefreshTokenGrant(targetName, authData);
+                break;
+
+            default:
+                _logger.LogWarning(
+                    "OAuthService: Unknown grant_type '{GrantType}' for target '{TargetName}'. " +
+                    "Basic validation only - ensure all required fields are present.",
+                    grantType, targetName);
+                break;
+        }
+    }
+
+    /// <summary>
+    /// Validates configuration for OAuth 2.0 Password Grant (Resource Owner Password Credentials).
+    /// </summary>
+    private void ValidatePasswordGrant(string targetName, Dictionary<string, string> authData)
+    {
+        var requiredFields = new[] { "username", "password", "client_id" };
+
+        foreach (var field in requiredFields)
+        {
+            if (!authData.ContainsKey(field) || string.IsNullOrWhiteSpace(authData[field]))
             {
-                if (!target.AuthData.ContainsKey(field) || string.IsNullOrWhiteSpace(target.AuthData[field]))
-                {
-                    throw new ArgumentException(
-                        $"Target '{targetName}' with grant_type='password' missing required field: '{field}'");
-                }
+                throw new ArgumentException(
+                    $"Target '{targetName}' with grant_type='password' missing required field: '{field}'");
             }
+        }
+
+        // client_secret is optional for password grant (public clients)
+        if (authData.ContainsKey("client_secret") && string.IsNullOrWhiteSpace(authData["client_secret"]))
+        {
+            _logger.LogWarning(
+                "OAuthService: Target '{TargetName}' has empty client_secret - treating as public client",
+                targetName);
+        }
+    }
+
+    /// <summary>
+    /// Validates configuration for OAuth 2.0 Client Credentials Grant.
+    /// </summary>
+    private void ValidateClientCredentialsGrant(string targetName, Dictionary<string, string> authData)
+    {
+        var requiredFields = new[] { "client_id", "client_secret" };
+
+        foreach (var field in requiredFields)
+        {
+            if (!authData.ContainsKey(field) || string.IsNullOrWhiteSpace(authData[field]))
+            {
+                throw new ArgumentException(
+                    $"Target '{targetName}' with grant_type='client_credentials' missing required field: '{field}'");
+            }
+        }
+    }
+
+    /// <summary>
+    /// Validates configuration for OAuth 2.0 Authorization Code Grant.
+    /// </summary>
+    private void ValidateAuthorizationCodeGrant(string targetName, Dictionary<string, string> authData)
+    {
+        var requiredFields = new[] { "client_id", "client_secret", "code", "redirect_uri" };
+
+        foreach (var field in requiredFields)
+        {
+            if (!authData.ContainsKey(field) || string.IsNullOrWhiteSpace(authData[field]))
+            {
+                throw new ArgumentException(
+                    $"Target '{targetName}' with grant_type='authorization_code' missing required field: '{field}'");
+            }
+        }
+    }
+
+    /// <summary>
+    /// Validates configuration for OAuth 2.0 Refresh Token Grant.
+    /// </summary>
+    private void ValidateRefreshTokenGrant(string targetName, Dictionary<string, string> authData)
+    {
+        var requiredFields = new[] { "client_id", "refresh_token" };
+
+        foreach (var field in requiredFields)
+        {
+            if (!authData.ContainsKey(field) || string.IsNullOrWhiteSpace(authData[field]))
+            {
+                throw new ArgumentException(
+                    $"Target '{targetName}' with grant_type='refresh_token' missing required field: '{field}'");
+            }
+        }
+
+        // client_secret is typically required but may be optional for public clients
+        if (!authData.ContainsKey("client_secret") || string.IsNullOrWhiteSpace(authData["client_secret"]))
+        {
+            _logger.LogWarning(
+                "OAuthService: Target '{TargetName}' using refresh_token grant without client_secret - treating as public client",
+                targetName);
         }
     }
 
