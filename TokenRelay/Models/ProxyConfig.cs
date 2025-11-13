@@ -51,9 +51,15 @@ public class TargetConfig
 
     // Optional token for downstream proxy authentication - used when chaining proxies
     public string Token { get; set; } = string.Empty;
-    
+
     // Allow ignoring SSL certificate validation errors (e.g., self-signed certificates)
     public bool IgnoreCertificateValidation { get; set; } = false;
+
+    // Authentication type: "static" or "oauth"
+    public string AuthType { get; set; } = "static";
+
+    // OAuth authentication data (generic key-value pairs)
+    public Dictionary<string, string> AuthData { get; set; } = new();
 }
 
 public class PluginConfig

@@ -14,15 +14,18 @@ public class ProxyService : IProxyService
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly IConfigurationService _configService;
     private readonly ILogger<ProxyService> _logger;
+    private readonly IOAuthService _oauthService;
 
     public ProxyService(
         IHttpClientFactory httpClientFactory,
         IConfigurationService configService,
-        ILogger<ProxyService> logger)
+        ILogger<ProxyService> logger,
+        IOAuthService oauthService)
     {
         _httpClientFactory = httpClientFactory;
         _configService = configService;
         _logger = logger;
+        _oauthService = oauthService;
     }
 
     private HttpClient CreateHttpClientForTarget(TargetConfig target, ProxyConfig proxy)
@@ -121,8 +124,30 @@ public class ProxyService : IProxyService
             foreach (var header in target.Headers)
             {
                 forwardedRequest.Headers.TryAddWithoutValidation(header.Key, header.Value);
-                _logger.LogDebug("ProxyService: Added custom header '{HeaderName}': '{HeaderValue}'", 
+                _logger.LogDebug("ProxyService: Added custom header '{HeaderName}': '{HeaderValue}'",
                     header.Key, header.Value.Length > 50 ? $"{header.Value[..50]}..." : header.Value);
+            }
+        }
+
+        // Add OAuth Authorization header if target uses OAuth
+        if (target.AuthType.Equals("oauth", StringComparison.OrdinalIgnoreCase))
+        {
+            try
+            {
+                _logger.LogDebug("ProxyService: Target '{TargetName}' uses OAuth, acquiring token", targetName);
+                var token = await _oauthService.AcquireTokenAsync(targetName, target, context.RequestAborted);
+                var authHeaderValue = token.GetAuthorizationHeaderValue();
+
+                forwardedRequest.Headers.TryAddWithoutValidation("Authorization", authHeaderValue);
+                _logger.LogDebug("ProxyService: Added OAuth Authorization header for target '{TargetName}' (type: {TokenType})",
+                    targetName, token.TokenType);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "ProxyService: Failed to acquire OAuth token for target '{TargetName}'", targetName);
+                throw new HttpRequestException(
+                    $"Failed to acquire OAuth token for target '{targetName}': {ex.Message}",
+                    ex);
             }
         }
 
@@ -270,6 +295,28 @@ public class ProxyService : IProxyService
             foreach (var header in chainTarget.Headers)
             {
                 forwardedRequest.Headers.TryAddWithoutValidation(header.Key, header.Value);
+            }
+        }
+
+        // Add OAuth Authorization header for chain target if configured
+        if (chainTarget.AuthType.Equals("oauth", StringComparison.OrdinalIgnoreCase))
+        {
+            try
+            {
+                _logger.LogDebug("ProxyService: Chain target uses OAuth, acquiring token");
+                var token = await _oauthService.AcquireTokenAsync("__chain_target__", chainTarget, context.RequestAborted);
+                var authHeaderValue = token.GetAuthorizationHeaderValue();
+
+                forwardedRequest.Headers.TryAddWithoutValidation("Authorization", authHeaderValue);
+                _logger.LogDebug("ProxyService: Added OAuth Authorization header for chain target (type: {TokenType})",
+                    token.TokenType);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "ProxyService: Failed to acquire OAuth token for chain target");
+                throw new HttpRequestException(
+                    $"Failed to acquire OAuth token for chain target: {ex.Message}",
+                    ex);
             }
         }
 
