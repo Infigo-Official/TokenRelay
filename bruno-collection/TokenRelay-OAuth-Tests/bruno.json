@@ -1,0 +1,9 @@
+{
+  "version": "1",
+  "name": "TokenRelay OAuth Tests",
+  "type": "collection",
+  "ignore": [
+    "node_modules",
+    ".git"
+  ]
+}

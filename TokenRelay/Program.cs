@@ -51,6 +51,7 @@ builder.Services.AddHealthChecks()
 
 // Add custom services
 builder.Services.AddSingleton<IConfigurationService, ConfigurationService>();
+builder.Services.AddSingleton<IOAuthService, OAuthService>();
 builder.Services.AddScoped<IProxyService, ProxyService>();
 builder.Services.AddSingleton<IPluginService, PluginService>();
 builder.Services.AddSingleton<IMemoryLogService, MemoryLogService>();

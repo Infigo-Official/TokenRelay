@@ -20,6 +20,36 @@
         "healthCheckUrl": "https://api.example.com/health",
         "description": "Example API endpoint - replace with your actual endpoints",
         "enabled": true
+      },
+      "oauth-test-api": {
+        "endpoint": "http://oauth-server:8080/v1",
+        "healthCheckUrl": "http://oauth-server:8080/health",
+        "description": "OAuth2 Server Test API with Password Grant",
+        "enabled": true,
+        "authType": "oauth",
+        "authData": {
+          "token_endpoint": "http://oauth-server:8080/v1/oauth/tokens",
+          "grant_type": "password",
+          "username": "test_user",
+          "password": "test_password",
+          "client_id": "test_client_1",
+          "client_secret": "test_secret_1",
+          "scope": "read write"
+        }
+      },
+      "oauth-test-client-creds": {
+        "endpoint": "http://oauth-server:8080/v1",
+        "healthCheckUrl": "http://oauth-server:8080/health",
+        "description": "OAuth2 Server Test API with Client Credentials Grant",
+        "enabled": true,
+        "authType": "oauth",
+        "authData": {
+          "token_endpoint": "http://oauth-server:8080/v1/oauth/tokens",
+          "grant_type": "client_credentials",
+          "client_id": "test_client_1",
+          "client_secret": "test_secret_1",
+          "scope": "read"
+        }
       }
     }
   },

@@ -1,0 +1,46 @@
+meta {
+  name: Get Status
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{tokenrelay_url}}/status
+  body: none
+  auth: none
+}
+
+headers {
+  TOKEN-RELAY-AUTH: {{tokenrelay_auth_token}}
+}
+
+docs {
+  # TokenRelay Status
+
+  Retrieves the current status of TokenRelay including:
+  - Service uptime
+  - Target configurations
+  - Health check status for each target
+  - OAuth cache statistics (if available)
+
+  ## Expected Response
+  ```json
+  {
+    "status": "healthy",
+    "targets": {
+      "oauth-test-api": {
+        "enabled": true,
+        "authType": "oauth",
+        "health": "healthy"
+      },
+      "oauth-test-client-creds": {
+        "enabled": true,
+        "authType": "oauth",
+        "health": "healthy"
+      }
+    },
+    "uptime": "...",
+    "version": "1.0.0"
+  }
+  ```
+}

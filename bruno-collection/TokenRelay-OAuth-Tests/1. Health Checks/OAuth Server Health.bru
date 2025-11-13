@@ -1,0 +1,21 @@
+meta {
+  name: OAuth Server Health
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{oauth_server_url}}/health
+  body: none
+  auth: none
+}
+
+docs {
+  # OAuth2 Server Health Check
+
+  Verifies that the go-oauth2-server is running and healthy.
+
+  Expected Response:
+  - Status: 200 OK
+  - Health status information
+}

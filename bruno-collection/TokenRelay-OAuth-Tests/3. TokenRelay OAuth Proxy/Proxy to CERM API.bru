@@ -1,0 +1,56 @@
+meta {
+  name: Proxy to CERM API
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{tokenrelay_url}}/proxy/customers
+  body: none
+  auth: none
+}
+
+headers {
+  TOKEN-RELAY-TARGET: cerm
+  TOKEN-RELAY-AUTH: {{tokenrelay_auth_token}}
+}
+
+docs {
+  # TokenRelay OAuth Proxy - CERM API
+
+  This request demonstrates TokenRelay's automatic OAuth token acquisition for the CERM API using the password grant flow.
+
+  ## How It Works
+  1. TokenRelay receives your request
+  2. Checks if it has a valid cached OAuth token for the CERM target
+  3. If not cached or expired:
+     - Requests a new token from the CERM OAuth server using configured credentials
+     - Caches the token for future requests
+  4. Injects the OAuth token into the Authorization header
+  5. Forwards the request to the CERM API
+
+  ## Configuration
+  The `cerm` target is configured in `tokenrelay.json`:
+  ```json
+  {
+    "authType": "oauth",
+    "authData": {
+      "token_endpoint": "https://your-oauth-server.example.com/oauth/token",
+      "grant_type": "password",
+      "username": "your-username",
+      "password": "your-password",
+      "client_id": "your-client-id",
+      "client_secret": "your-client-secret"
+    }
+  }
+  ```
+
+  ## Monitoring
+  Watch TokenRelay logs to see:
+  - First request: OAuth token acquisition
+  - Subsequent requests: Token retrieved from cache
+  - Token expiration: Automatic refresh
+
+  ## Endpoint
+  This example calls the `/customers` endpoint on the CERM API.
+}

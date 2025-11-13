@@ -1,0 +1,43 @@
+meta {
+  name: Get Logs
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{tokenrelay_url}}/logs?minutes=10
+  body: none
+  auth: none
+}
+
+headers {
+  TOKEN-RELAY-AUTH: {{tokenrelay_auth_token}}
+}
+
+params:query {
+  minutes: 10
+}
+
+docs {
+  # TokenRelay Logs
+
+  Retrieves recent logs from TokenRelay for debugging and monitoring.
+
+  ## Query Parameters
+  - `minutes`: Number of minutes of logs to retrieve (default: 10)
+
+  ## Use Case
+  View logs to monitor:
+  - OAuth token acquisition
+  - Token cache hits/misses
+  - Failed authentication attempts
+  - Target health checks
+  - Request forwarding
+
+  ## Filter OAuth Logs
+  Look for log entries containing:
+  - "OAuthService"
+  - "OAuth token"
+  - "Cache hit"
+  - "Cache miss"
+}
