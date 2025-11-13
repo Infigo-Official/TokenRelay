@@ -156,16 +156,18 @@ public class OAuthService : IOAuthService
                 authData.GetValueOrDefault("client_id"),
                 authData.GetValueOrDefault("scope", "none"));
 
-            var httpClient = _httpClientFactory.CreateClient();
+            var httpClient = CreateHttpClient(target);
 
             // Create a timeout cancellation token source (30 seconds for OAuth requests)
             using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
             using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeoutCts.Token);
 
-            // Add Basic Auth if client_secret is provided
+            // Add Basic Auth if client_secret is provided (but not for password grant type - it goes in form body)
+            var grantType = authData.GetValueOrDefault("grant_type")?.ToLowerInvariant();
             if (authData.TryGetValue("client_secret", out var clientSecret) &&
                 !string.IsNullOrEmpty(clientSecret) &&
-                authData.TryGetValue("client_id", out var clientId))
+                authData.TryGetValue("client_id", out var clientId) &&
+                grantType != "password")
             {
                 var credentials = Convert.ToBase64String(
                     Encoding.UTF8.GetBytes($"{clientId}:{clientSecret}"));
@@ -243,6 +245,30 @@ public class OAuthService : IOAuthService
             Interlocked.Increment(ref _tokenAcquisitionFailures);
             throw;
         }
+    }
+    
+    private HttpClient CreateHttpClient(TargetConfig target)
+    {
+        if (target.IgnoreCertificateValidation)
+        {
+            _logger.LogWarning("OAuthService: SSL certificate validation is DISABLED for this target. " +
+                               "This should only be used in development/testing environments!");
+
+            var handler = new HttpClientHandler
+            {
+                ServerCertificateCustomValidationCallback = (message, cert, chain, errors) =>
+                {
+                    // Accept all certificates
+                    _logger.LogDebug("OAuthService: Bypassing SSL certificate validation. Errors: {SslErrors}", errors);
+                    return true;
+                }
+            };
+
+            return new HttpClient(handler);
+        }
+
+        // Use factory for standard clients
+        return _httpClientFactory.CreateClient();
     }
 
     private string GetOrBuildTokenEndpoint(TargetConfig target)
@@ -324,7 +350,11 @@ public class OAuthService : IOAuthService
                 formData["scope"] = scope;
             }
 
-            // Note: client_secret goes in Authorization header, not form data
+            // For password grant type, client_secret goes in form body if provided
+            if (authData.TryGetValue("client_secret", out var clientSecret) && !string.IsNullOrWhiteSpace(clientSecret))
+            {
+                formData["client_secret"] = clientSecret;
+            }
         }
         // Future: Add support for other grant types here (client_credentials, authorization_code, etc.)
 
