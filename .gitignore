@@ -68,3 +68,7 @@ docker/certs/*.cer
 *.VisualState.xml
 TestResult.xml
 nunit-*.xml
+
+# IDEs and Editors
+.claude
+.idea

@@ -1,0 +1,21 @@
+meta {
+  name: TokenRelay Health
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{tokenrelay_url}}/health
+  body: none
+  auth: none
+}
+
+docs {
+  # TokenRelay Health Check
+
+  Verifies that the TokenRelay service is running and healthy.
+
+  Expected Response:
+  - Status: 200 OK
+  - Body: "Healthy"
+}
