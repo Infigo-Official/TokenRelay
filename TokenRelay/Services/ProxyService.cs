@@ -101,7 +101,8 @@ public class ProxyService : IProxyService
         {
             if (IsHeaderToExclude(header.Key))
             {
-                _logger.LogDebug("ProxyService: Excluding header '{HeaderName}' from forwarded request", header.Key);
+                _logger.LogDebug("ProxyService: Excluding header '{HeaderName}' from forwarded request",
+                    SanitizeHeaderNameForLogging(header.Key));
                 continue;
             }
 
@@ -111,7 +112,7 @@ public class ProxyService : IProxyService
 
             var headerValue = string.Join(", ", header.Value.ToArray());
             _logger.LogDebug("ProxyService: Adding header '{HeaderName}' with value '{HeaderValue}' to forwarded request",
-                header.Key, SanitizeHeaderValueForLogging(header.Key, headerValue));
+                SanitizeHeaderNameForLogging(header.Key), SanitizeHeaderValueForLogging(header.Key, headerValue));
             forwardedRequest.Headers.TryAddWithoutValidation(header.Key, header.Value.ToArray());
             headerCount++;
         }
@@ -174,7 +175,7 @@ public class ProxyService : IProxyService
                 {
                     var headerValue = string.Join(", ", header.Value.ToArray());
                     _logger.LogDebug("ProxyService: Copying content header '{HeaderName}' with value '{HeaderValue}'",
-                        header.Key, SanitizeHeaderValueForLogging(header.Key, headerValue));
+                        SanitizeHeaderNameForLogging(header.Key), SanitizeHeaderValueForLogging(header.Key, headerValue));
                     content.Headers.TryAddWithoutValidation(header.Key, header.Value.ToArray());
                     contentHeaderCount++;
                 }
@@ -191,7 +192,7 @@ public class ProxyService : IProxyService
         try
         {
             _logger.LogInformation("ProxyService: Forwarding {Method} request to {TargetUrl} for target '{TargetName}' from {ClientIP}",
-                context.Request.Method, SanitizeUrlForLogging(targetUrl), targetName, clientIP);
+                SanitizeForLogging(context.Request.Method), SanitizeUrlForLogging(targetUrl), SanitizeForLogging(targetName), clientIP);
 
             var stopwatch = System.Diagnostics.Stopwatch.StartNew();
             var response = await httpClient.SendAsync(forwardedRequest, HttpCompletionOption.ResponseHeadersRead);
@@ -216,25 +217,25 @@ public class ProxyService : IProxyService
         catch (HttpRequestException ex)
         {
             _logger.LogError(ex, "ProxyService: HTTP error forwarding {Method} request to {TargetUrl} for target '{TargetName}'",
-                context.Request.Method, SanitizeUrlForLogging(targetUrl), targetName);
+                SanitizeForLogging(context.Request.Method), SanitizeUrlForLogging(targetUrl), SanitizeForLogging(targetName));
             throw;
         }
         catch (TaskCanceledException ex) when (ex.InnerException is TimeoutException)
         {
             _logger.LogWarning(ex, "ProxyService: Timeout forwarding {Method} request to {TargetUrl} for target '{TargetName}' (timeout: {TimeoutSeconds}s)",
-                context.Request.Method, SanitizeUrlForLogging(targetUrl), targetName, proxyConfig.TimeoutSeconds);
+                SanitizeForLogging(context.Request.Method), SanitizeUrlForLogging(targetUrl), SanitizeForLogging(targetName), proxyConfig.TimeoutSeconds);
             throw;
         }
         catch (TaskCanceledException ex)
         {
             _logger.LogWarning(ex, "ProxyService: Request cancelled while forwarding {Method} request to {TargetUrl} for target '{TargetName}'",
-                context.Request.Method, SanitizeUrlForLogging(targetUrl), targetName);
+                SanitizeForLogging(context.Request.Method), SanitizeUrlForLogging(targetUrl), SanitizeForLogging(targetName));
             throw;
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "ProxyService: Unexpected error forwarding {Method} request to {TargetUrl} for target '{TargetName}'",
-                context.Request.Method, SanitizeUrlForLogging(targetUrl), targetName);
+                SanitizeForLogging(context.Request.Method), SanitizeUrlForLogging(targetUrl), SanitizeForLogging(targetName));
             throw;
         }
     }
@@ -276,7 +277,8 @@ public class ProxyService : IProxyService
         {
             if (IsHeaderToExclude(header.Key))
             {
-                _logger.LogDebug("ProxyService: Chain mode - excluding header '{HeaderName}'", header.Key);
+                _logger.LogDebug("ProxyService: Chain mode - excluding header '{HeaderName}'",
+                    SanitizeHeaderNameForLogging(header.Key));
                 continue;
             }
 
@@ -371,7 +373,7 @@ public class ProxyService : IProxyService
                     contentHeaderCount++;
                     var headerValue = string.Join(", ", header.Value.ToArray());
                     _logger.LogDebug("ProxyService: Chain mode - copied content header '{HeaderName}' with value '{HeaderValue}'",
-                        header.Key, SanitizeHeaderValueForLogging(header.Key, headerValue));
+                        SanitizeHeaderNameForLogging(header.Key), SanitizeHeaderValueForLogging(header.Key, headerValue));
                 }
             }
             _logger.LogDebug("ProxyService: Chain mode - copied {ContentHeaderCount} content headers", contentHeaderCount);
@@ -386,7 +388,7 @@ public class ProxyService : IProxyService
         try
         {
             _logger.LogInformation("ProxyService: Chain mode - forwarding {Method} request to downstream proxy {TargetUrl} for target '{TargetName}' from {ClientIP}",
-                context.Request.Method, SanitizeUrlForLogging(targetUrl), targetName, clientIP);
+                SanitizeForLogging(context.Request.Method), SanitizeUrlForLogging(targetUrl), SanitizeForLogging(targetName), clientIP);
 
             _logger.LogDebug("ProxyService: Chain mode - request details before sending: Content-Length: {ContentLength}, Headers: {HeaderCount}",
                 forwardedRequest.Content?.Headers.ContentLength?.ToString() ?? "none",
@@ -404,19 +406,19 @@ public class ProxyService : IProxyService
         catch (TaskCanceledException ex) when (ex.InnerException is TimeoutException)
         {
             _logger.LogError(ex, "ProxyService: Chain mode - timeout forwarding {Method} request to downstream proxy {TargetUrl} (timeout: {TimeoutSeconds}s)",
-                context.Request.Method, SanitizeUrlForLogging(targetUrl), proxyConfig.TimeoutSeconds);
+                SanitizeForLogging(context.Request.Method), SanitizeUrlForLogging(targetUrl), proxyConfig.TimeoutSeconds);
             throw;
         }
         catch (HttpRequestException ex)
         {
             _logger.LogError(ex, "ProxyService: Chain mode - HTTP error forwarding {Method} request to downstream proxy {TargetUrl}",
-                context.Request.Method, SanitizeUrlForLogging(targetUrl));
+                SanitizeForLogging(context.Request.Method), SanitizeUrlForLogging(targetUrl));
             throw;
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "ProxyService: Chain mode - unexpected error forwarding {Method} request to downstream proxy {TargetUrl}",
-                context.Request.Method, SanitizeUrlForLogging(targetUrl));
+                SanitizeForLogging(context.Request.Method), SanitizeUrlForLogging(targetUrl));
             throw;
         }
     }
@@ -531,5 +533,35 @@ public class ProxyService : IProxyService
 
         // Truncate long values to prevent log bloat
         return headerValue.Length > 100 ? $"{headerValue[..100]}..." : headerValue;
+    }
+
+    /// <summary>
+    /// Sanitizes header name for logging to prevent log injection attacks.
+    /// </summary>
+    private static string SanitizeHeaderNameForLogging(string headerName)
+    {
+        if (string.IsNullOrEmpty(headerName))
+            return headerName ?? string.Empty;
+
+        // Remove newline characters and other control characters
+        return headerName
+            .Replace("\r", "")
+            .Replace("\n", "")
+            .Replace("\t", " ");
+    }
+
+    /// <summary>
+    /// Sanitizes user-provided strings for logging to prevent log injection attacks.
+    /// </summary>
+    private static string SanitizeForLogging(string? input)
+    {
+        if (string.IsNullOrEmpty(input))
+            return input ?? string.Empty;
+
+        // Remove newline characters and other control characters that could be used for log injection
+        return input
+            .Replace("\r", "")
+            .Replace("\n", "")
+            .Replace("\t", " ");
     }
 }
