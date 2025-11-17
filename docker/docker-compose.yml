@@ -1,4 +1,22 @@
 services:
+  # Mock OAuth2 Server (Python Flask) - FOR TESTING ONLY
+  # This is a simple OAuth server to test TokenRelay's OAuth functionality
+  # In production, configure TokenRelay to use your real OAuth server (Keycloak, Auth0, Okta, etc.)
+  oauth-server:
+    build:
+      context: ./mock-oauth-server
+      dockerfile: Dockerfile
+    container_name: "${OAUTH_SERVER_CONTAINER:-tokenrelay-oauth-server}"
+    ports:
+      - "${OAUTH_SERVER_EXTERNAL_PORT:-8080}:8080"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+
   tokenrelay:
     build:
       context: ..
