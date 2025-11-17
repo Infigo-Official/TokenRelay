@@ -68,7 +68,7 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
           build-args: |
-            VERSION=${{ github.ref_name }}
+            VERSION=${{ startsWith(github.ref_name, 'v') && substring(github.ref_name, 1) || github.ref_name }}
             BUILD_DATE=${{ github.event.head_commit.timestamp }}
           provenance: mode=max
           sbom: true
