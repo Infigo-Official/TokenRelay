@@ -39,6 +39,14 @@ jobs:
           username: ${{ secrets.DOCKER_HUB_USERNAME }}
           password: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
 
+      - name: Extract version from tag
+        id: version
+        run: |
+          VERSION="${{ github.ref_name }}"
+          # Strip 'v' prefix if present
+          VERSION="${VERSION#v}"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
       - name: Extract metadata (tags, labels)
         id: meta
         uses: docker/metadata-action@v5
@@ -68,7 +76,7 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
           build-args: |
-            VERSION=${{ startsWith(github.ref_name, 'v') && substring(github.ref_name, 1) || github.ref_name }}
+            VERSION=${{ steps.version.outputs.version }}
             BUILD_DATE=${{ github.event.head_commit.timestamp }}
           provenance: mode=max
           sbom: true
