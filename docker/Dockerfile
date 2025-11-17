@@ -14,21 +14,34 @@ ARG BUILD_DATE
 
 # Copy project file and restore dependencies
 COPY ../TokenRelay/TokenRelay.csproj TokenRelay/
-RUN dotnet restore "TokenRelay/TokenRelay.csproj"
+RUN dotnet restore "TokenRelay/TokenRelay.csproj" /p:Version=${VERSION}
 
 # Copy source code and build (excluding sensitive config files)
 COPY ../TokenRelay/ TokenRelay/
 # Remove any configuration files that might have been copied
 RUN rm -f TokenRelay/tokenrelay.json
 WORKDIR "/src/TokenRelay"
-RUN dotnet build "TokenRelay.csproj" -c Release -o /app/build
+RUN dotnet build "TokenRelay.csproj" -c Release -o /app/build \
+    /p:Version=${VERSION} \
+    /p:AssemblyVersion=${VERSION}.0 \
+    /p:FileVersion=${VERSION}.0
 
 # Publish the application
 FROM build AS publish
-RUN dotnet publish "TokenRelay.csproj" -c Release -o /app/publish /p:UseAppHost=false
+ARG VERSION=1.0.0-docker
+RUN dotnet publish "TokenRelay.csproj" -c Release -o /app/publish \
+    /p:UseAppHost=false \
+    /p:Version=${VERSION} \
+    /p:AssemblyVersion=${VERSION}.0 \
+    /p:FileVersion=${VERSION}.0
 
 # Final stage - create runtime image
 FROM base AS final
+
+# Accept version arguments for environment variables
+ARG VERSION=1.0.0-docker
+ARG BUILD_DATE
+
 WORKDIR /app
 COPY --from=publish /app/publish .
 
