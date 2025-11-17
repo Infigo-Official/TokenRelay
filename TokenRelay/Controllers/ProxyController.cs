@@ -29,29 +29,29 @@ public class ProxyController : ControllerBase
         var fullPath = path ?? string.Empty;
         string? targetName = null;
         
-        _logger.LogDebug("Received {Method} request to proxy path '{Path}' from {ClientIP}", 
-            method, fullPath, clientIP);
+        _logger.LogDebug("Received {Method} request to proxy path '{Path}' from {ClientIP}",
+            method, SanitizeForLogging(fullPath), clientIP);
 
         try
         {
             // Get target from header
             if (!Request.Headers.TryGetValue("TOKEN-RELAY-TARGET", out var targetHeader))
             {
-                _logger.LogWarning("Request to '{Path}' missing TOKEN-RELAY-TARGET header from {ClientIP}", 
-                    fullPath, clientIP);
+                _logger.LogWarning("Request to '{Path}' missing TOKEN-RELAY-TARGET header from {ClientIP}",
+                    SanitizeForLogging(fullPath), clientIP);
                 return BadRequest("TOKEN-RELAY-TARGET header is required");
             }
 
             targetName = targetHeader.FirstOrDefault();
             if (string.IsNullOrEmpty(targetName))
             {
-                _logger.LogWarning("Request to '{Path}' has empty TOKEN-RELAY-TARGET header from {ClientIP}", 
-                    fullPath, clientIP);
+                _logger.LogWarning("Request to '{Path}' has empty TOKEN-RELAY-TARGET header from {ClientIP}",
+                    SanitizeForLogging(fullPath), clientIP);
                 return BadRequest("TOKEN-RELAY-TARGET header cannot be empty");
             }
 
-            _logger.LogInformation("Processing {Method} proxy request to target '{TargetName}' path '{Path}' from {ClientIP}", 
-                method, targetName, fullPath, clientIP);
+            _logger.LogInformation("Processing {Method} proxy request to target '{TargetName}' path '{Path}' from {ClientIP}",
+                method, SanitizeForLogging(targetName), SanitizeForLogging(fullPath), clientIP);
             
             // Log request details at debug level
             _logger.LogDebug("Request details - Content-Length: {ContentLength}, Content-Type: {ContentType}, Query: {QueryString}", 
@@ -62,8 +62,8 @@ public class ProxyController : ControllerBase
             // Forward the request
             var response = await _proxyService.ForwardRequestAsync(HttpContext, targetName, fullPath);
 
-            _logger.LogInformation("Proxy request completed - {Method} to '{TargetName}' returned {StatusCode} from {ClientIP}", 
-                method, targetName, (int)response.StatusCode, clientIP);
+            _logger.LogInformation("Proxy request completed - {Method} to '{TargetName}' returned {StatusCode} from {ClientIP}",
+                method, SanitizeForLogging(targetName), (int)response.StatusCode, clientIP);
             
             _logger.LogDebug("Response details - Status: {StatusCode}, Content-Length: {ContentLength}, Content-Type: {ContentType}", 
                 response.StatusCode, 
@@ -115,8 +115,8 @@ public class ProxyController : ControllerBase
             }
             catch (Exception streamEx)
             {
-                _logger.LogError(streamEx, "Error streaming response content for {Method} request to '{TargetName}'", 
-                    method, targetName);
+                _logger.LogError(streamEx, "Error streaming response content for {Method} request to '{TargetName}'",
+                    method, SanitizeForLogging(targetName));
                 throw;
             }
 
@@ -124,26 +124,26 @@ public class ProxyController : ControllerBase
         }
         catch (ArgumentException ex)
         {
-            _logger.LogWarning(ex, "Invalid target configuration for '{TargetName}' requested from {ClientIP}", 
-                targetName ?? "unknown", clientIP);
+            _logger.LogWarning(ex, "Invalid target configuration for '{TargetName}' requested from {ClientIP}",
+                SanitizeForLogging(targetName ?? "unknown"), clientIP);
             return BadRequest(ex.Message);
         }
         catch (HttpRequestException ex)
         {
-            _logger.LogError(ex, "Network error during {Method} proxy request to '{TargetName}' from {ClientIP}", 
-                method, targetName ?? "unknown", clientIP);
+            _logger.LogError(ex, "Network error during {Method} proxy request to '{TargetName}' from {ClientIP}",
+                method, SanitizeForLogging(targetName ?? "unknown"), clientIP);
             return StatusCode(502, "Bad Gateway: Unable to connect to target service");
         }
         catch (TaskCanceledException ex) when (ex.InnerException is TimeoutException)
         {
-            _logger.LogWarning(ex, "Timeout during {Method} proxy request to '{TargetName}' from {ClientIP}", 
-                method, targetName ?? "unknown", clientIP);
+            _logger.LogWarning(ex, "Timeout during {Method} proxy request to '{TargetName}' from {ClientIP}",
+                method, SanitizeForLogging(targetName ?? "unknown"), clientIP);
             return StatusCode(504, "Gateway Timeout: Request to target service timed out");
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Unexpected error during {Method} proxy request to '{TargetName}' from {ClientIP}", 
-                method, targetName ?? "unknown", clientIP);
+            _logger.LogError(ex, "Unexpected error during {Method} proxy request to '{TargetName}' from {ClientIP}",
+                method, SanitizeForLogging(targetName ?? "unknown"), clientIP);
             return StatusCode(500, "Internal server error while processing request");
         }
     }
@@ -166,5 +166,21 @@ public class ProxyController : ControllerBase
         };
 
         return excludedHeaders.Contains(headerName, StringComparer.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// Sanitizes user-controlled input for logging to prevent log injection attacks.
+    /// Removes newline characters and other control characters that could be used to inject fake log entries.
+    /// </summary>
+    private static string SanitizeForLogging(string? input)
+    {
+        if (string.IsNullOrEmpty(input))
+            return input ?? string.Empty;
+
+        // Remove newline characters and other control characters that could be used for log injection
+        return input
+            .Replace("\r", "")
+            .Replace("\n", "")
+            .Replace("\t", " ");
     }
 }

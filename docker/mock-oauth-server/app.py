@@ -215,4 +215,5 @@ def get_data():
     }), 200
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=8080, debug=True)
+    # Debug mode disabled for security - prevents arbitrary code execution through debugger
+    app.run(host='0.0.0.0', port=8080, debug=False)
