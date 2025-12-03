@@ -130,7 +130,7 @@ public class FunctionController : ControllerBase
                 _logger.LogDebug("FunctionController: Processing JSON body for '{Plugin}.{Function}'", plugin, function);
                 
                 // Handle JSON body
-                var body = await JsonDocument.ParseAsync(Request.Body);
+                using var body = await JsonDocument.ParseAsync(Request.Body);
                 if (body.RootElement.ValueKind == JsonValueKind.Object)
                 {
                     var jsonParamCount = 0;

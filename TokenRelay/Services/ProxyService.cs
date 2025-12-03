@@ -71,7 +71,7 @@ public class ProxyService : IProxyService
         _logger.LogDebug("ProxyService: Target '{TargetName}' resolved to endpoint '{Endpoint}'", 
             targetName, target.Endpoint);
 
-        var httpClient = CreateHttpClientForTarget(target, proxyConfig);
+        using var httpClient = CreateHttpClientForTarget(target, proxyConfig);
 
         _logger.LogDebug("ProxyService: HTTP client configured with timeout {TimeoutSeconds}s", proxyConfig.TimeoutSeconds);
 
@@ -85,7 +85,7 @@ public class ProxyService : IProxyService
         _logger.LogDebug("ProxyService: Final target URL constructed: {TargetUrl}", targetUrl);
 
         // Create the forwarded request
-        var forwardedRequest = new HttpRequestMessage(
+        using var forwardedRequest = new HttpRequestMessage(
             new HttpMethod(context.Request.Method),
             targetUrl);
 
@@ -227,7 +227,7 @@ public class ProxyService : IProxyService
             throw new InvalidOperationException("Chain mode is enabled but no target proxy endpoint configured");
         }
 
-        var httpClient = CreateHttpClientForTarget(chainTarget, proxyConfig);
+        using var httpClient = CreateHttpClientForTarget(chainTarget, proxyConfig);
 
         // Build target URL - forward to the chain proxy with the same path
         var targetUrl = CombineUrls(chainTarget.Endpoint, $"proxy/{remainingPath}");
@@ -239,7 +239,7 @@ public class ProxyService : IProxyService
         _logger.LogDebug("ProxyService: Chain target URL constructed: {TargetUrl}", targetUrl);
 
         // Create the forwarded request
-        var forwardedRequest = new HttpRequestMessage(
+        using var forwardedRequest = new HttpRequestMessage(
             new HttpMethod(context.Request.Method),
             targetUrl);
 
@@ -293,16 +293,16 @@ public class ProxyService : IProxyService
             context.Request.Headers.TransferEncoding.Any(te => te == "chunked"))
         {
             _logger.LogDebug("ProxyService: Chain mode - buffering request body for reliable transmission");
-            
+
             // For chain mode, buffer the request body to ensure reliable transmission
             // between proxy instances using CopyToAsync for all cases
-            _logger.LogDebug("ProxyService: Chain mode - reading request body (Content-Length: {ContentLength})", 
+            _logger.LogDebug("ProxyService: Chain mode - reading request body (Content-Length: {ContentLength})",
                 context.Request.ContentLength?.ToString() ?? "unknown");
-            
+
             using var memoryStream = new MemoryStream();
             await context.Request.Body.CopyToAsync(memoryStream);
             var content = new ByteArrayContent(memoryStream.ToArray());
-            _logger.LogDebug("ProxyService: Chain mode - buffered {BufferedSize} bytes from stream (original Content-Length: {OriginalLength})", 
+            _logger.LogDebug("ProxyService: Chain mode - buffered {BufferedSize} bytes from stream (original Content-Length: {OriginalLength})",
                 memoryStream.Length, context.Request.ContentLength?.ToString() ?? "unknown");
 
             // Copy content headers (but let ByteArrayContent set Content-Length)
@@ -317,10 +317,10 @@ public class ProxyService : IProxyService
                         _logger.LogDebug("ProxyService: Chain mode - skipping Content-Length header (will be set by ByteArrayContent)");
                         continue;
                     }
-                    
+
                     content.Headers.TryAddWithoutValidation(header.Key, header.Value.ToArray());
                     contentHeaderCount++;
-                    _logger.LogDebug("ProxyService: Chain mode - copied content header '{HeaderName}' with value '{HeaderValue}'", 
+                    _logger.LogDebug("ProxyService: Chain mode - copied content header '{HeaderName}' with value '{HeaderValue}'",
                         header.Key, string.Join(", ", header.Value.ToArray()));
                 }
             }
@@ -335,37 +335,37 @@ public class ProxyService : IProxyService
 
         try
         {
-            _logger.LogInformation("ProxyService: Chain mode - forwarding {Method} request to downstream proxy {TargetUrl} for target '{TargetName}' from {ClientIP}", 
+            _logger.LogInformation("ProxyService: Chain mode - forwarding {Method} request to downstream proxy {TargetUrl} for target '{TargetName}' from {ClientIP}",
                 context.Request.Method, targetUrl, targetName, clientIP);
 
-            _logger.LogDebug("ProxyService: Chain mode - request details before sending: Content-Length: {ContentLength}, Headers: {HeaderCount}", 
+            _logger.LogDebug("ProxyService: Chain mode - request details before sending: Content-Length: {ContentLength}, Headers: {HeaderCount}",
                 forwardedRequest.Content?.Headers.ContentLength?.ToString() ?? "none",
                 forwardedRequest.Headers.Count());
 
             var stopwatch = System.Diagnostics.Stopwatch.StartNew();
             var response = await httpClient.SendAsync(forwardedRequest, HttpCompletionOption.ResponseHeadersRead);
             stopwatch.Stop();
-            
-            _logger.LogInformation("ProxyService: Chain mode - received {StatusCode} response from downstream proxy {TargetUrl} in {ElapsedMs}ms", 
+
+            _logger.LogInformation("ProxyService: Chain mode - received {StatusCode} response from downstream proxy {TargetUrl} in {ElapsedMs}ms",
                 response.StatusCode, targetUrl, stopwatch.ElapsedMilliseconds);
 
             return response;
         }
         catch (TaskCanceledException ex) when (ex.InnerException is TimeoutException)
         {
-            _logger.LogError(ex, "ProxyService: Chain mode - timeout forwarding {Method} request to downstream proxy {TargetUrl} (timeout: {TimeoutSeconds}s)", 
+            _logger.LogError(ex, "ProxyService: Chain mode - timeout forwarding {Method} request to downstream proxy {TargetUrl} (timeout: {TimeoutSeconds}s)",
                 context.Request.Method, targetUrl, proxyConfig.TimeoutSeconds);
             throw;
         }
         catch (HttpRequestException ex)
         {
-            _logger.LogError(ex, "ProxyService: Chain mode - HTTP error forwarding {Method} request to downstream proxy {TargetUrl}", 
+            _logger.LogError(ex, "ProxyService: Chain mode - HTTP error forwarding {Method} request to downstream proxy {TargetUrl}",
                 context.Request.Method, targetUrl);
             throw;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "ProxyService: Chain mode - unexpected error forwarding {Method} request to downstream proxy {TargetUrl}", 
+            _logger.LogError(ex, "ProxyService: Chain mode - unexpected error forwarding {Method} request to downstream proxy {TargetUrl}",
                 context.Request.Method, targetUrl);
             throw;
         }
