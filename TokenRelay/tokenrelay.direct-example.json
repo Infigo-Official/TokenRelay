@@ -33,10 +33,40 @@
       "internal-api": {
         "endpoint": "https://internal-api.company.com",
         "healthCheckUrl": "https://internal-api.company.com/health",
-        "description": "Internal company API",
+        "description": "Internal company API with static auth",
+        "authType": "static",
         "headers": {
           "Authorization": "Bearer api-key-here",
           "X-API-Version": "v1"
+        }
+      },
+      "cerm": {
+        "enabled": true,
+        "endpoint": "http://your-cerm-url",
+        "healthCheckUrl": "",
+        "description": "CERM API with OAuth password grant (explicit token_endpoint)",
+        "authType": "oauth",
+        "authData": {
+          "token_endpoint": "http://your-cerm-url/oauth/token",
+          "grant_type": "password",
+          "username": "CERM-Username",
+          "password": "CERM-password",
+          "client_id": "CERM-clientId",
+          "client_secret": "CERM-clientSecret",
+          "scope": "scope"
+        }
+      },
+      "another-oauth-api": {
+        "enabled": true,
+        "endpoint": "https://api.example.com",
+        "description": "OAuth API with dynamic token_endpoint (will use https://api.example.com/oauth/token)",
+        "authType": "oauth",
+        "authData": {
+          "grant_type": "password",
+          "username": "api-user",
+          "password": "api-password",
+          "client_id": "client-id",
+          "client_secret": "client-secret"
         }
       }
     }
