@@ -361,6 +361,28 @@ curl -X GET "http://localhost:5163/logs" \
 }
 ```
 
+### ✅ Debug Body Encryption
+
+When debug logging is enabled, request and response bodies are logged for troubleshooting. For additional security, you can encrypt these logged bodies using AES encryption by setting an environment variable:
+
+```bash
+# Set the encryption key (any string, will be padded/truncated to 32 bytes for AES-256)
+export DEBUG_BODY_ENCRYPTION_KEY=your-secret-encryption-key-here
+```
+
+When enabled, debug logs will show encrypted content:
+```
+Body (256 chars):
+ENC_DEBUG:base64encodedencryptedcontent...
+```
+
+To decrypt the logs, use the `DebugEncryptionHelper.Decrypt()` method with the same key:
+```csharp
+var plainText = DebugEncryptionHelper.Decrypt(encryptedLogLine, "your-secret-encryption-key-here");
+```
+
+**Note:** If the environment variable is not set, bodies are logged in plain text (after sanitization of sensitive fields).
+
 ### ✅ Dynamic Log Level Changes
 
 Change log levels at runtime without restarting the service:

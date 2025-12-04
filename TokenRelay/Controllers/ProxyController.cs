@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using TokenRelay.Services;
+using NewRelic.Api.Agent;
 
 namespace TokenRelay.Controllers;
 
@@ -49,6 +50,10 @@ public class ProxyController : ControllerBase
                     SanitizeForLogging(fullPath), clientIP);
                 return BadRequest("TOKEN-RELAY-TARGET header cannot be empty");
             }
+
+            // Set custom transaction name in New Relic for better grouping
+            // Transactions will appear as "Proxy/Forward/{targetName}" instead of generic controller name
+            NewRelic.Api.Agent.NewRelic.SetTransactionName("Proxy", $"Forward/{SanitizeForLogging(targetName)}");
 
             _logger.LogInformation("Processing {Method} proxy request to target '{TargetName}' path '{Path}' from {ClientIP}",
                 method, SanitizeForLogging(targetName), SanitizeForLogging(fullPath), clientIP);

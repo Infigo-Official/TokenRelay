@@ -23,21 +23,33 @@ USERS = {
 # In-memory token storage
 tokens = {}
 
-def validate_basic_auth():
-    """Validate HTTP Basic Authentication"""
+def validate_client_credentials():
+    """
+    Validate client credentials from either:
+    1. HTTP Basic Authentication header (preferred)
+    2. Form body parameters (for password grant with confidential clients)
+    """
+    # First try Basic Auth header
     auth_header = request.headers.get('Authorization')
-    if not auth_header or not auth_header.startswith('Basic '):
-        return None, None
+    if auth_header and auth_header.startswith('Basic '):
+        try:
+            credentials = base64.b64decode(auth_header[6:]).decode('utf-8')
+            client_id, client_secret = credentials.split(':', 1)
 
-    try:
-        credentials = base64.b64decode(auth_header[6:]).decode('utf-8')
-        client_id, client_secret = credentials.split(':', 1)
+            if client_id in CLIENTS and CLIENTS[client_id] == client_secret:
+                return client_id, client_secret
+        except:
+            pass
 
+    # Fall back to form body parameters (common for password grant)
+    client_id = request.form.get('client_id')
+    client_secret = request.form.get('client_secret')
+
+    if client_id and client_secret:
         if client_id in CLIENTS and CLIENTS[client_id] == client_secret:
             return client_id, client_secret
-        return None, None
-    except:
-        return None, None
+
+    return None, None
 
 @app.route('/health', methods=['GET'])
 def health():
@@ -52,8 +64,8 @@ def health():
 def token():
     """OAuth 2.0 Token Endpoint"""
 
-    # Validate client credentials via Basic Auth
-    client_id, client_secret = validate_basic_auth()
+    # Validate client credentials via Basic Auth or form body
+    client_id, client_secret = validate_client_credentials()
 
     if not client_id:
         return jsonify({
