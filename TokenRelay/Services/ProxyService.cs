@@ -606,7 +606,8 @@ public class ProxyService : IProxyService
         {
             var uri = new Uri(url);
             // Return URL without query string to avoid logging sensitive parameters
-            return uri.GetLeftPart(UriPartial.Path);
+            // Also sanitize for log injection attacks
+            return SanitizationHelper.SanitizeForLogging(uri.GetLeftPart(UriPartial.Path));
         }
         catch
         {
