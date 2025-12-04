@@ -59,13 +59,13 @@ public class HttpLoggingHandler : DelegatingHandler
         sb.AppendLine($"{request.Method} {request.RequestUri}");
         sb.AppendLine($"HTTP/{request.Version}");
         
-        // Log headers
+        // Log headers (sanitizing sensitive ones)
         sb.AppendLine("Headers:");
         foreach (var header in request.Headers)
         {
             foreach (var value in header.Value)
             {
-                sb.AppendLine($"  {header.Key}: {value}");
+                sb.AppendLine($"  {header.Key}: {SanitizeHeaderValue(header.Key, value)}");
             }
         }
 
@@ -76,24 +76,26 @@ public class HttpLoggingHandler : DelegatingHandler
             {
                 foreach (var value in header.Value)
                 {
-                    sb.AppendLine($"  {header.Key}: {value}");
+                    sb.AppendLine($"  {header.Key}: {SanitizeHeaderValue(header.Key, value)}");
                 }
             }
 
             sb.AppendLine();
-            
+
             try
             {
                 var contentType = request.Content.Headers.ContentType?.MediaType ?? "application/octet-stream";
-                
+
                 // Only log text-based content to avoid logging binary data
+                // But sanitize potential sensitive content (like OAuth credentials)
                 if (IsTextContent(contentType))
                 {
                     var content = await request.Content.ReadAsStringAsync();
                     if (!string.IsNullOrEmpty(content))
                     {
+                        var sanitizedContent = SanitizeBodyContent(content, contentType);
                         sb.AppendLine($"Body ({content.Length} chars):");
-                        sb.AppendLine(content);
+                        sb.AppendLine(sanitizedContent);
                     }
                     else
                     {
@@ -117,7 +119,7 @@ public class HttpLoggingHandler : DelegatingHandler
         }
 
         sb.AppendLine("=== END REQUEST ===");
-        
+
         _logger.LogDebug("HttpLoggingHandler: {RequestLog}", sb.ToString());
     }
 
@@ -127,13 +129,13 @@ public class HttpLoggingHandler : DelegatingHandler
         sb.AppendLine($"=== HTTP RESPONSE {requestId} ({elapsedMs}ms) ===");
         sb.AppendLine($"HTTP/{response.Version} {(int)response.StatusCode} {response.StatusCode}");
         
-        // Log headers
+        // Log headers (sanitizing sensitive ones)
         sb.AppendLine("Headers:");
         foreach (var header in response.Headers)
         {
             foreach (var value in header.Value)
             {
-                sb.AppendLine($"  {header.Key}: {value}");
+                sb.AppendLine($"  {header.Key}: {SanitizeHeaderValue(header.Key, value)}");
             }
         }
 
@@ -144,24 +146,26 @@ public class HttpLoggingHandler : DelegatingHandler
             {
                 foreach (var value in header.Value)
                 {
-                    sb.AppendLine($"  {header.Key}: {value}");
+                    sb.AppendLine($"  {header.Key}: {SanitizeHeaderValue(header.Key, value)}");
                 }
             }
 
             sb.AppendLine();
-            
+
             try
             {
                 var contentType = response.Content.Headers.ContentType?.MediaType ?? "application/octet-stream";
-                
+
                 // Only log text-based content to avoid logging binary data
+                // But sanitize potential sensitive content (like OAuth token responses)
                 if (IsTextContent(contentType))
                 {
                     var content = await response.Content.ReadAsStringAsync();
                     if (!string.IsNullOrEmpty(content))
                     {
+                        var sanitizedContent = SanitizeBodyContent(content, contentType);
                         sb.AppendLine($"Body ({content.Length} chars):");
-                        sb.AppendLine(content);
+                        sb.AppendLine(sanitizedContent);
                     }
                     else
                     {
@@ -195,7 +199,7 @@ public class HttpLoggingHandler : DelegatingHandler
             return false;
 
         contentType = contentType.ToLowerInvariant();
-        
+
         return contentType.StartsWith("text/") ||
                contentType.StartsWith("application/json") ||
                contentType.StartsWith("application/xml") ||
@@ -204,5 +208,101 @@ public class HttpLoggingHandler : DelegatingHandler
                contentType.StartsWith("application/javascript") ||
                contentType.StartsWith("application/ecmascript") ||
                contentType.Contains("charset=");
+    }
+
+    /// <summary>
+    /// Sanitizes header values to prevent logging sensitive information.
+    /// </summary>
+    private static string SanitizeHeaderValue(string headerName, string value)
+    {
+        // List of sensitive headers that should be redacted
+        var sensitiveHeaders = new[]
+        {
+            "Authorization",
+            "TOKEN-RELAY-AUTH",
+            "X-API-Key",
+            "API-Key",
+            "Cookie",
+            "Set-Cookie",
+            "X-Auth-Token",
+            "X-Access-Token",
+            "X-Refresh-Token",
+            "WWW-Authenticate",
+            "Proxy-Authorization",
+            "Proxy-Authenticate"
+        };
+
+        if (sensitiveHeaders.Contains(headerName, StringComparer.OrdinalIgnoreCase))
+        {
+            return "[REDACTED]";
+        }
+
+        return value;
+    }
+
+    /// <summary>
+    /// Sanitizes body content to prevent logging sensitive information like tokens and credentials.
+    /// </summary>
+    private static string SanitizeBodyContent(string content, string contentType)
+    {
+        if (string.IsNullOrEmpty(content))
+            return content;
+
+        // For JSON content, try to redact sensitive fields
+        if (contentType.Contains("json", StringComparison.OrdinalIgnoreCase))
+        {
+            try
+            {
+                var json = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, System.Text.Json.JsonElement>>(content);
+                if (json != null)
+                {
+                    var sensitiveFields = new[] { "access_token", "refresh_token", "id_token", "token", "secret", "password", "client_secret", "api_key", "apikey" };
+                    var sanitized = new Dictionary<string, object>();
+
+                    foreach (var kvp in json)
+                    {
+                        if (sensitiveFields.Contains(kvp.Key, StringComparer.OrdinalIgnoreCase))
+                        {
+                            sanitized[kvp.Key] = "[REDACTED]";
+                        }
+                        else
+                        {
+                            sanitized[kvp.Key] = kvp.Value.ToString();
+                        }
+                    }
+
+                    return System.Text.Json.JsonSerializer.Serialize(sanitized);
+                }
+            }
+            catch
+            {
+                // If JSON parsing fails, return the original content
+            }
+        }
+
+        // For form-urlencoded content, redact sensitive parameters
+        if (contentType.Contains("x-www-form-urlencoded", StringComparison.OrdinalIgnoreCase))
+        {
+            var sensitiveParams = new[] { "client_secret", "password", "token", "access_token", "refresh_token", "secret", "api_key", "apikey" };
+            var parts = content.Split('&');
+            var sanitizedParts = new List<string>();
+
+            foreach (var part in parts)
+            {
+                var keyValue = part.Split('=', 2);
+                if (keyValue.Length == 2 && sensitiveParams.Contains(keyValue[0], StringComparer.OrdinalIgnoreCase))
+                {
+                    sanitizedParts.Add($"{keyValue[0]}=[REDACTED]");
+                }
+                else
+                {
+                    sanitizedParts.Add(part);
+                }
+            }
+
+            return string.Join("&", sanitizedParts);
+        }
+
+        return content;
     }
 }

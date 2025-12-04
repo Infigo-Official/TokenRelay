@@ -1,6 +1,7 @@
 using System.Net;
 using System.Text;
 using TokenRelay.Models;
+using NewRelic.Api.Agent;
 
 namespace TokenRelay.Services;
 
@@ -46,12 +47,22 @@ public class ProxyService : IProxyService
         };
     }
 
+    [Trace]
     public async Task<HttpResponseMessage> ForwardRequestAsync(HttpContext context, string targetName, string remainingPath)
     {
         var proxyConfig = _configService.GetProxyConfig();
         var clientIP = context.Connection.RemoteIpAddress?.ToString() ?? "unknown";
-        
-        _logger.LogDebug("ProxyService: Starting request forwarding for target '{TargetName}', path '{Path}', mode '{Mode}' from {ClientIP}", 
+
+        // Add custom attributes to New Relic transaction for better visibility
+        // These attributes appear in traces without exposing sensitive data
+        var transaction = NewRelic.Api.Agent.NewRelic.GetAgent().CurrentTransaction;
+        transaction.AddCustomAttribute("tokenrelay.target", targetName);
+        transaction.AddCustomAttribute("tokenrelay.mode", proxyConfig.Mode);
+        transaction.AddCustomAttribute("tokenrelay.path", remainingPath);
+        transaction.AddCustomAttribute("tokenrelay.client_ip", clientIP);
+        transaction.AddCustomAttribute("tokenrelay.method", context.Request.Method);
+
+        _logger.LogDebug("ProxyService: Starting request forwarding for target '{TargetName}', path '{Path}', mode '{Mode}' from {ClientIP}",
             targetName, remainingPath, proxyConfig.Mode, clientIP);
         
         // Check if we're in chain mode
@@ -137,15 +148,27 @@ public class ProxyService : IProxyService
             try
             {
                 _logger.LogDebug("ProxyService: Target '{TargetName}' uses OAuth, acquiring token", targetName);
-                var token = await _oauthService.AcquireTokenAsync(targetName, target, context.RequestAborted);
-                var authHeaderValue = token.GetAuthorizationHeaderValue();
 
+                // Track OAuth token acquisition timing
+                var oauthStopwatch = System.Diagnostics.Stopwatch.StartNew();
+                var token = await _oauthService.AcquireTokenAsync(targetName, target, context.RequestAborted);
+                oauthStopwatch.Stop();
+
+                var authHeaderValue = token.GetAuthorizationHeaderValue();
                 forwardedRequest.Headers.TryAddWithoutValidation("Authorization", authHeaderValue);
-                _logger.LogDebug("ProxyService: Added OAuth Authorization header for target '{TargetName}' (type: {TokenType})",
-                    targetName, token.TokenType);
+
+                // Add OAuth attributes to New Relic transaction for visibility
+                transaction.AddCustomAttribute("tokenrelay.oauth_used", true);
+                transaction.AddCustomAttribute("tokenrelay.oauth_target", targetName);
+                transaction.AddCustomAttribute("tokenrelay.oauth_token_type", token.TokenType ?? "unknown");
+                transaction.AddCustomAttribute("tokenrelay.oauth_acquire_time_ms", oauthStopwatch.ElapsedMilliseconds);
+
+                _logger.LogDebug("ProxyService: Added OAuth Authorization header for target '{TargetName}' (type: {TokenType}) in {ElapsedMs}ms",
+                    targetName, token.TokenType, oauthStopwatch.ElapsedMilliseconds);
             }
             catch (Exception ex)
             {
+                transaction.AddCustomAttribute("tokenrelay.oauth_error", true);
                 _logger.LogError(ex, "ProxyService: Failed to acquire OAuth token for target '{TargetName}'", targetName);
                 throw new HttpRequestException(
                     $"Failed to acquire OAuth token for target '{targetName}': {ex.Message}",
@@ -201,52 +224,93 @@ public class ProxyService : IProxyService
             _logger.LogInformation("ProxyService: Received {StatusCode} response from {TargetUrl} in {ElapsedMs}ms",
                 response.StatusCode, SanitizeUrlForLogging(targetUrl), stopwatch.ElapsedMilliseconds);
 
+            // Add response attributes to New Relic for trace analysis
+            transaction.AddCustomAttribute("tokenrelay.response_status", (int)response.StatusCode);
+            transaction.AddCustomAttribute("tokenrelay.response_time_ms", stopwatch.ElapsedMilliseconds);
+            transaction.AddCustomAttribute("tokenrelay.target_endpoint", SanitizeUrlForLogging(target.Endpoint));
+
             _logger.LogDebug("ProxyService: Response details - Status: {StatusCode}, Content-Length: {ContentLength}, Content-Type: {ContentType}, Headers: {HeaderCount}", 
                 response.StatusCode,
                 response.Content.Headers.ContentLength?.ToString() ?? "unknown",
                 response.Content.Headers.ContentType?.ToString() ?? "unknown",
                 response.Headers.Count() + response.Content.Headers.Count());
 
-            _logger.LogDebug("ProxyService: Response: {StatusCode} - Headers: {Headers}", 
-                response.StatusCode, 
-                string.Join(", ", response.Headers.Select(h => $"{h.Key}: {string.Join(", ", h.Value)}")));
+            _logger.LogDebug("ProxyService: Response: {StatusCode} - Headers: {Headers}",
+                response.StatusCode,
+                string.Join(", ", response.Headers.Select(h => $"{h.Key}: {SanitizeHeaderValueForLogging(h.Key, string.Join(", ", h.Value))}")));
             
 
             return response;
         }
         catch (HttpRequestException ex)
         {
+            // Report error to New Relic with context (no sensitive data)
+            NewRelic.Api.Agent.NewRelic.NoticeError(ex, new Dictionary<string, object>
+            {
+                { "tokenrelay.target", targetName },
+                { "tokenrelay.url", SanitizeUrlForLogging(targetUrl) },
+                { "tokenrelay.mode", proxyConfig.Mode },
+                { "tokenrelay.error_type", "HttpRequestException" }
+            });
             _logger.LogError(ex, "ProxyService: HTTP error forwarding {Method} request to {TargetUrl} for target '{TargetName}'",
                 SanitizeForLogging(context.Request.Method), SanitizeUrlForLogging(targetUrl), SanitizeForLogging(targetName));
             throw;
         }
         catch (TaskCanceledException ex) when (ex.InnerException is TimeoutException)
         {
+            NewRelic.Api.Agent.NewRelic.NoticeError(ex, new Dictionary<string, object>
+            {
+                { "tokenrelay.target", targetName },
+                { "tokenrelay.url", SanitizeUrlForLogging(targetUrl) },
+                { "tokenrelay.mode", proxyConfig.Mode },
+                { "tokenrelay.error_type", "Timeout" },
+                { "tokenrelay.timeout_seconds", proxyConfig.TimeoutSeconds }
+            });
             _logger.LogWarning(ex, "ProxyService: Timeout forwarding {Method} request to {TargetUrl} for target '{TargetName}' (timeout: {TimeoutSeconds}s)",
                 SanitizeForLogging(context.Request.Method), SanitizeUrlForLogging(targetUrl), SanitizeForLogging(targetName), proxyConfig.TimeoutSeconds);
             throw;
         }
         catch (TaskCanceledException ex)
         {
+            NewRelic.Api.Agent.NewRelic.NoticeError(ex, new Dictionary<string, object>
+            {
+                { "tokenrelay.target", targetName },
+                { "tokenrelay.url", SanitizeUrlForLogging(targetUrl) },
+                { "tokenrelay.mode", proxyConfig.Mode },
+                { "tokenrelay.error_type", "Cancelled" }
+            });
             _logger.LogWarning(ex, "ProxyService: Request cancelled while forwarding {Method} request to {TargetUrl} for target '{TargetName}'",
                 SanitizeForLogging(context.Request.Method), SanitizeUrlForLogging(targetUrl), SanitizeForLogging(targetName));
             throw;
         }
         catch (Exception ex)
         {
+            NewRelic.Api.Agent.NewRelic.NoticeError(ex, new Dictionary<string, object>
+            {
+                { "tokenrelay.target", targetName },
+                { "tokenrelay.url", SanitizeUrlForLogging(targetUrl) },
+                { "tokenrelay.mode", proxyConfig.Mode },
+                { "tokenrelay.error_type", "Unexpected" }
+            });
             _logger.LogError(ex, "ProxyService: Unexpected error forwarding {Method} request to {TargetUrl} for target '{TargetName}'",
                 SanitizeForLogging(context.Request.Method), SanitizeUrlForLogging(targetUrl), SanitizeForLogging(targetName));
             throw;
         }
     }
 
+    [Trace]
     private async Task<HttpResponseMessage> ForwardToChainAsync(HttpContext context, string targetName, string remainingPath)
     {
         var proxyConfig = _configService.GetProxyConfig();
         var chainTarget = proxyConfig.Chain.TargetProxy;
         var clientIP = context.Connection.RemoteIpAddress?.ToString() ?? "unknown";
-        
-        _logger.LogDebug("ProxyService: Chain mode - forwarding to downstream proxy '{ChainEndpoint}' for target '{TargetName}' from {ClientIP}", 
+
+        // Add chain-specific attributes to New Relic transaction
+        var transaction = NewRelic.Api.Agent.NewRelic.GetAgent().CurrentTransaction;
+        transaction.AddCustomAttribute("tokenrelay.chain_mode", true);
+        transaction.AddCustomAttribute("tokenrelay.chain_endpoint", SanitizeUrlForLogging(chainTarget.Endpoint));
+
+        _logger.LogDebug("ProxyService: Chain mode - forwarding to downstream proxy '{ChainEndpoint}' for target '{TargetName}' from {ClientIP}",
             chainTarget.Endpoint, targetName, clientIP);
         
         if (string.IsNullOrEmpty(chainTarget.Endpoint))
@@ -308,15 +372,26 @@ public class ProxyService : IProxyService
             try
             {
                 _logger.LogDebug("ProxyService: Chain target uses OAuth, acquiring token");
-                var token = await _oauthService.AcquireTokenAsync("__chain_target__", chainTarget, context.RequestAborted);
-                var authHeaderValue = token.GetAuthorizationHeaderValue();
 
+                // Track OAuth token acquisition timing for chain target
+                var oauthStopwatch = System.Diagnostics.Stopwatch.StartNew();
+                var token = await _oauthService.AcquireTokenAsync("__chain_target__", chainTarget, context.RequestAborted);
+                oauthStopwatch.Stop();
+
+                var authHeaderValue = token.GetAuthorizationHeaderValue();
                 forwardedRequest.Headers.TryAddWithoutValidation("Authorization", authHeaderValue);
-                _logger.LogDebug("ProxyService: Added OAuth Authorization header for chain target (type: {TokenType})",
-                    token.TokenType);
+
+                // Add chain OAuth attributes to New Relic transaction
+                transaction.AddCustomAttribute("tokenrelay.chain_oauth_used", true);
+                transaction.AddCustomAttribute("tokenrelay.chain_oauth_token_type", token.TokenType ?? "unknown");
+                transaction.AddCustomAttribute("tokenrelay.chain_oauth_acquire_time_ms", oauthStopwatch.ElapsedMilliseconds);
+
+                _logger.LogDebug("ProxyService: Added OAuth Authorization header for chain target (type: {TokenType}) in {ElapsedMs}ms",
+                    token.TokenType, oauthStopwatch.ElapsedMilliseconds);
             }
             catch (Exception ex)
             {
+                transaction.AddCustomAttribute("tokenrelay.chain_oauth_error", true);
                 _logger.LogError(ex, "ProxyService: Failed to acquire OAuth token for chain target");
                 throw new HttpRequestException(
                     $"Failed to acquire OAuth token for chain target: {ex.Message}",
@@ -401,22 +476,48 @@ public class ProxyService : IProxyService
             _logger.LogInformation("ProxyService: Chain mode - received {StatusCode} response from downstream proxy {TargetUrl} in {ElapsedMs}ms",
                 response.StatusCode, SanitizeUrlForLogging(targetUrl), stopwatch.ElapsedMilliseconds);
 
+            // Add chain response attributes to New Relic
+            transaction.AddCustomAttribute("tokenrelay.chain_response_status", (int)response.StatusCode);
+            transaction.AddCustomAttribute("tokenrelay.chain_response_time_ms", stopwatch.ElapsedMilliseconds);
+
             return response;
         }
         catch (TaskCanceledException ex) when (ex.InnerException is TimeoutException)
         {
+            NewRelic.Api.Agent.NewRelic.NoticeError(ex, new Dictionary<string, object>
+            {
+                { "tokenrelay.target", targetName },
+                { "tokenrelay.chain_url", SanitizeUrlForLogging(targetUrl) },
+                { "tokenrelay.mode", "chain" },
+                { "tokenrelay.error_type", "ChainTimeout" },
+                { "tokenrelay.timeout_seconds", proxyConfig.TimeoutSeconds }
+            });
             _logger.LogError(ex, "ProxyService: Chain mode - timeout forwarding {Method} request to downstream proxy {TargetUrl} (timeout: {TimeoutSeconds}s)",
                 SanitizeForLogging(context.Request.Method), SanitizeUrlForLogging(targetUrl), proxyConfig.TimeoutSeconds);
             throw;
         }
         catch (HttpRequestException ex)
         {
+            NewRelic.Api.Agent.NewRelic.NoticeError(ex, new Dictionary<string, object>
+            {
+                { "tokenrelay.target", targetName },
+                { "tokenrelay.chain_url", SanitizeUrlForLogging(targetUrl) },
+                { "tokenrelay.mode", "chain" },
+                { "tokenrelay.error_type", "ChainHttpError" }
+            });
             _logger.LogError(ex, "ProxyService: Chain mode - HTTP error forwarding {Method} request to downstream proxy {TargetUrl}",
                 SanitizeForLogging(context.Request.Method), SanitizeUrlForLogging(targetUrl));
             throw;
         }
         catch (Exception ex)
         {
+            NewRelic.Api.Agent.NewRelic.NoticeError(ex, new Dictionary<string, object>
+            {
+                { "tokenrelay.target", targetName },
+                { "tokenrelay.chain_url", SanitizeUrlForLogging(targetUrl) },
+                { "tokenrelay.mode", "chain" },
+                { "tokenrelay.error_type", "ChainUnexpected" }
+            });
             _logger.LogError(ex, "ProxyService: Chain mode - unexpected error forwarding {Method} request to downstream proxy {TargetUrl}",
                 SanitizeForLogging(context.Request.Method), SanitizeUrlForLogging(targetUrl));
             throw;
@@ -523,7 +624,13 @@ public class ProxyService : IProxyService
             "X-API-Key",
             "API-Key",
             "Cookie",
-            "Set-Cookie"
+            "Set-Cookie",
+            "X-Auth-Token",
+            "X-Access-Token",
+            "X-Refresh-Token",
+            "WWW-Authenticate",
+            "Proxy-Authorization",
+            "Proxy-Authenticate"
         };
 
         if (sensitiveHeaders.Contains(headerName, StringComparer.OrdinalIgnoreCase))

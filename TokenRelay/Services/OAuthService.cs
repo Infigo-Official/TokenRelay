@@ -188,11 +188,13 @@ public class OAuthService : IOAuthService
 
             if (!response.IsSuccessStatusCode)
             {
+                // Sanitize response to avoid logging sensitive data (error responses may still contain tokens)
+                var sanitizedResponse = SanitizeOAuthResponseForLogging(responseContent);
                 _logger.LogError("OAuthService: Token acquisition failed for target '{TargetName}' - Status: {StatusCode}, Response: {Response}",
-                    targetName, response.StatusCode, responseContent);
+                    targetName, response.StatusCode, sanitizedResponse);
                 Interlocked.Increment(ref _tokenAcquisitionFailures);
                 throw new HttpRequestException(
-                    $"OAuth token acquisition failed with status {response.StatusCode}: {responseContent}");
+                    $"OAuth token acquisition failed with status {response.StatusCode}");
             }
 
             _logger.LogInformation("OAuthService: Token acquired successfully for target '{TargetName}' in {ElapsedMs}ms",
@@ -233,11 +235,11 @@ public class OAuthService : IOAuthService
             // Validate that we have a valid access token
             if (string.IsNullOrWhiteSpace(token.AccessToken))
             {
-                _logger.LogError("OAuthService: Invalid token response for target '{TargetName}' - access_token is null or empty. Response: {Response}",
-                    targetName, responseContent);
+                _logger.LogError("OAuthService: Invalid token response for target '{TargetName}' - access_token is null or empty",
+                    targetName);
                 Interlocked.Increment(ref _tokenAcquisitionFailures);
                 throw new InvalidOperationException(
-                    $"Invalid token response from endpoint: access_token is null or empty. Response: {responseContent}");
+                    "Invalid token response from endpoint: access_token is null or empty");
             }
 
             _logger.LogDebug("OAuthService: Token details - Type: '{TokenType}', Expires in: {ExpiresIn}s, Expires at: {ExpiresAt}",
@@ -515,5 +517,44 @@ public class OAuthService : IOAuthService
                 : 0.0,
             ["cachedTargets"] = _tokenCache.Keys.ToList()
         };
+    }
+
+    /// <summary>
+    /// Sanitizes OAuth response content for logging by removing sensitive fields.
+    /// </summary>
+    private static string SanitizeOAuthResponseForLogging(string responseContent)
+    {
+        if (string.IsNullOrEmpty(responseContent))
+            return responseContent;
+
+        try
+        {
+            var json = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(responseContent);
+            if (json == null)
+                return "[unparseable response]";
+
+            // List of sensitive fields to redact
+            var sensitiveFields = new[] { "access_token", "refresh_token", "id_token", "token", "secret", "password", "client_secret" };
+            var sanitized = new Dictionary<string, object>();
+
+            foreach (var kvp in json)
+            {
+                if (sensitiveFields.Contains(kvp.Key, StringComparer.OrdinalIgnoreCase))
+                {
+                    sanitized[kvp.Key] = "[REDACTED]";
+                }
+                else
+                {
+                    sanitized[kvp.Key] = kvp.Value.ToString();
+                }
+            }
+
+            return JsonSerializer.Serialize(sanitized);
+        }
+        catch
+        {
+            // If we can't parse it as JSON, return a generic message
+            return "[response content redacted]";
+        }
     }
 }
