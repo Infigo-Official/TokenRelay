@@ -95,8 +95,9 @@ public class HttpLoggingHandler : DelegatingHandler
                     if (!string.IsNullOrEmpty(content))
                     {
                         var sanitizedContent = SanitizationHelper.SanitizeBodyContent(content, contentType);
+                        var bodyToLog = DebugEncryptionHelper.EncryptIfEnabled(sanitizedContent);
                         sb.AppendLine($"Body ({content.Length} chars):");
-                        sb.AppendLine(sanitizedContent);
+                        sb.AppendLine(bodyToLog);
                     }
                     else
                     {
@@ -165,8 +166,9 @@ public class HttpLoggingHandler : DelegatingHandler
                     if (!string.IsNullOrEmpty(content))
                     {
                         var sanitizedContent = SanitizationHelper.SanitizeBodyContent(content, contentType);
+                        var bodyToLog = DebugEncryptionHelper.EncryptIfEnabled(sanitizedContent);
                         sb.AppendLine($"Body ({content.Length} chars):");
-                        sb.AppendLine(sanitizedContent);
+                        sb.AppendLine(bodyToLog);
                     }
                     else
                     {

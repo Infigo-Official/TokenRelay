@@ -47,6 +47,9 @@ services:
       - NEW_RELIC_DISTRIBUTED_TRACING_ENABLED=true
       # New Relic agent log level (debug, info, warn, error)
       - NEW_RELIC_LOG_LEVEL=${NEW_RELIC_LOG_LEVEL:-info}
+      # Debug body encryption - encrypts request/response bodies in debug logs
+      # Override with your own key or set to empty to disable
+      - DEBUG_BODY_ENCRYPTION_KEY=${DEBUG_BODY_ENCRYPTION_KEY:-k8sP2mN7vX9qL4wR6tY1uJ3hF5gA0bC8}
     volumes:
       # Mount configuration file (when using file-based config)
       # WARNING: Create your own tokenrelay.json with proper credentials!
@@ -96,6 +99,9 @@ services:
       - NEW_RELIC_DISTRIBUTED_TRACING_ENABLED=true
       # New Relic agent log level (debug, info, warn, error)
       - NEW_RELIC_LOG_LEVEL=${NEW_RELIC_LOG_LEVEL:-info}
+      # Debug body encryption - encrypts request/response bodies in debug logs
+      # Override with your own key or set to empty to disable
+      - DEBUG_BODY_ENCRYPTION_KEY=${DEBUG_BODY_ENCRYPTION_KEY:-k8sP2mN7vX9qL4wR6tY1uJ3hF5gA0bC8}
     volumes:
       # Mount configuration file (when using file-based config)
       - ${TOKENRELAY_CONFIG_PATH:-./config/tokenrelay.json}:/app/tokenrelay.json:ro

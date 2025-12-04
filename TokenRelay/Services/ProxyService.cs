@@ -1,5 +1,6 @@
 using System.Net;
 using System.Text;
+using TokenRelay.Middleware;
 using TokenRelay.Models;
 using TokenRelay.Utilities;
 using NewRelic.Api.Agent;
@@ -17,32 +18,39 @@ public class ProxyService : IProxyService
     private readonly IConfigurationService _configService;
     private readonly ILogger<ProxyService> _logger;
     private readonly IOAuthService _oauthService;
+    private readonly IServiceProvider _serviceProvider;
 
     public ProxyService(
         IHttpClientFactory httpClientFactory,
         IConfigurationService configService,
         ILogger<ProxyService> logger,
-        IOAuthService oauthService)
+        IOAuthService oauthService,
+        IServiceProvider serviceProvider)
     {
         _httpClientFactory = httpClientFactory;
         _configService = configService;
         _logger = logger;
         _oauthService = oauthService;
+        _serviceProvider = serviceProvider;
     }
 
     private HttpClient CreateHttpClientForTarget(TargetConfig target, ProxyConfig proxy)
     {
         var handler = new HttpClientHandler();
-        
+
         if (target.IgnoreCertificateValidation)
         {
-            _logger.LogInformation("ProxyService: Certificate validation is DISABLED for target endpoint: {Endpoint}.", 
+            _logger.LogInformation("ProxyService: Certificate validation is DISABLED for target endpoint: {Endpoint}.",
                 target.Endpoint);
-            handler.ServerCertificateCustomValidationCallback = 
+            handler.ServerCertificateCustomValidationCallback =
                 HttpClientHandler.DangerousAcceptAnyServerCertificateValidator;
         }
-        
-        return new HttpClient(handler)
+
+        // Chain the HttpLoggingHandler for debug logging with encryption support
+        var loggingHandler = _serviceProvider.GetRequiredService<HttpLoggingHandler>();
+        loggingHandler.InnerHandler = handler;
+
+        return new HttpClient(loggingHandler)
         {
             Timeout = TimeSpan.FromSeconds(proxy.TimeoutSeconds)
         };
