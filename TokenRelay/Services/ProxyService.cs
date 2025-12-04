@@ -1,6 +1,7 @@
 using System.Net;
 using System.Text;
 using TokenRelay.Models;
+using TokenRelay.Utilities;
 using NewRelic.Api.Agent;
 
 namespace TokenRelay.Services;
@@ -55,12 +56,13 @@ public class ProxyService : IProxyService
 
         // Add custom attributes to New Relic transaction for better visibility
         // These attributes appear in traces without exposing sensitive data
-        var transaction = NewRelic.Api.Agent.NewRelic.GetAgent().CurrentTransaction;
-        transaction.AddCustomAttribute("tokenrelay.target", targetName);
-        transaction.AddCustomAttribute("tokenrelay.mode", proxyConfig.Mode);
-        transaction.AddCustomAttribute("tokenrelay.path", remainingPath);
-        transaction.AddCustomAttribute("tokenrelay.client_ip", clientIP);
-        transaction.AddCustomAttribute("tokenrelay.method", context.Request.Method);
+        // Null check in case New Relic agent is not running
+        var transaction = NewRelic.Api.Agent.NewRelic.GetAgent()?.CurrentTransaction;
+        transaction?.AddCustomAttribute("tokenrelay.target", targetName);
+        transaction?.AddCustomAttribute("tokenrelay.mode", proxyConfig.Mode);
+        transaction?.AddCustomAttribute("tokenrelay.path", remainingPath);
+        transaction?.AddCustomAttribute("tokenrelay.client_ip", clientIP);
+        transaction?.AddCustomAttribute("tokenrelay.method", context.Request.Method);
 
         _logger.LogDebug("ProxyService: Starting request forwarding for target '{TargetName}', path '{Path}', mode '{Mode}' from {ClientIP}",
             targetName, remainingPath, proxyConfig.Mode, clientIP);
@@ -149,26 +151,25 @@ public class ProxyService : IProxyService
             {
                 _logger.LogDebug("ProxyService: Target '{TargetName}' uses OAuth, acquiring token", targetName);
 
-                // Track OAuth token acquisition timing
-                var oauthStopwatch = System.Diagnostics.Stopwatch.StartNew();
+                // Track OAuth token acquisition timing using ValueStopwatch (allocation-free)
+                var oauthStopwatch = ValueStopwatch.StartNew();
                 var token = await _oauthService.AcquireTokenAsync(targetName, target, context.RequestAborted);
-                oauthStopwatch.Stop();
 
                 var authHeaderValue = token.GetAuthorizationHeaderValue();
                 forwardedRequest.Headers.TryAddWithoutValidation("Authorization", authHeaderValue);
 
                 // Add OAuth attributes to New Relic transaction for visibility
-                transaction.AddCustomAttribute("tokenrelay.oauth_used", true);
-                transaction.AddCustomAttribute("tokenrelay.oauth_target", targetName);
-                transaction.AddCustomAttribute("tokenrelay.oauth_token_type", token.TokenType ?? "unknown");
-                transaction.AddCustomAttribute("tokenrelay.oauth_acquire_time_ms", oauthStopwatch.ElapsedMilliseconds);
+                transaction?.AddCustomAttribute("tokenrelay.oauth_used", true);
+                transaction?.AddCustomAttribute("tokenrelay.oauth_target", targetName);
+                transaction?.AddCustomAttribute("tokenrelay.oauth_token_type", token.TokenType ?? "unknown");
+                transaction?.AddCustomAttribute("tokenrelay.oauth_acquire_time_ms", oauthStopwatch.GetElapsedMilliseconds());
 
                 _logger.LogDebug("ProxyService: Added OAuth Authorization header for target '{TargetName}' (type: {TokenType}) in {ElapsedMs}ms",
-                    targetName, token.TokenType, oauthStopwatch.ElapsedMilliseconds);
+                    targetName, token.TokenType, oauthStopwatch.GetElapsedMilliseconds());
             }
             catch (Exception ex)
             {
-                transaction.AddCustomAttribute("tokenrelay.oauth_error", true);
+                transaction?.AddCustomAttribute("tokenrelay.oauth_error", true);
                 _logger.LogError(ex, "ProxyService: Failed to acquire OAuth token for target '{TargetName}'", targetName);
                 throw new HttpRequestException(
                     $"Failed to acquire OAuth token for target '{targetName}': {ex.Message}",
@@ -217,17 +218,16 @@ public class ProxyService : IProxyService
             _logger.LogInformation("ProxyService: Forwarding {Method} request to {TargetUrl} for target '{TargetName}' from {ClientIP}",
                 SanitizeForLogging(context.Request.Method), SanitizeUrlForLogging(targetUrl), SanitizeForLogging(targetName), clientIP);
 
-            var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+            var stopwatch = ValueStopwatch.StartNew();
             var response = await httpClient.SendAsync(forwardedRequest, HttpCompletionOption.ResponseHeadersRead);
-            stopwatch.Stop();
 
             _logger.LogInformation("ProxyService: Received {StatusCode} response from {TargetUrl} in {ElapsedMs}ms",
-                response.StatusCode, SanitizeUrlForLogging(targetUrl), stopwatch.ElapsedMilliseconds);
+                response.StatusCode, SanitizeUrlForLogging(targetUrl), stopwatch.GetElapsedMilliseconds());
 
             // Add response attributes to New Relic for trace analysis
-            transaction.AddCustomAttribute("tokenrelay.response_status", (int)response.StatusCode);
-            transaction.AddCustomAttribute("tokenrelay.response_time_ms", stopwatch.ElapsedMilliseconds);
-            transaction.AddCustomAttribute("tokenrelay.target_endpoint", SanitizeUrlForLogging(target.Endpoint));
+            transaction?.AddCustomAttribute("tokenrelay.response_status", (int)response.StatusCode);
+            transaction?.AddCustomAttribute("tokenrelay.response_time_ms", stopwatch.GetElapsedMilliseconds());
+            transaction?.AddCustomAttribute("tokenrelay.target_endpoint", SanitizationHelper.SanitizeUrlForLogging(target.Endpoint));
 
             _logger.LogDebug("ProxyService: Response details - Status: {StatusCode}, Content-Length: {ContentLength}, Content-Type: {ContentType}, Headers: {HeaderCount}", 
                 response.StatusCode,
@@ -306,9 +306,10 @@ public class ProxyService : IProxyService
         var clientIP = context.Connection.RemoteIpAddress?.ToString() ?? "unknown";
 
         // Add chain-specific attributes to New Relic transaction
-        var transaction = NewRelic.Api.Agent.NewRelic.GetAgent().CurrentTransaction;
-        transaction.AddCustomAttribute("tokenrelay.chain_mode", true);
-        transaction.AddCustomAttribute("tokenrelay.chain_endpoint", SanitizeUrlForLogging(chainTarget.Endpoint));
+        // Null check in case New Relic agent is not running
+        var transaction = NewRelic.Api.Agent.NewRelic.GetAgent()?.CurrentTransaction;
+        transaction?.AddCustomAttribute("tokenrelay.chain_mode", true);
+        transaction?.AddCustomAttribute("tokenrelay.chain_endpoint", SanitizationHelper.SanitizeUrlForLogging(chainTarget.Endpoint));
 
         _logger.LogDebug("ProxyService: Chain mode - forwarding to downstream proxy '{ChainEndpoint}' for target '{TargetName}' from {ClientIP}",
             chainTarget.Endpoint, targetName, clientIP);
@@ -373,25 +374,24 @@ public class ProxyService : IProxyService
             {
                 _logger.LogDebug("ProxyService: Chain target uses OAuth, acquiring token");
 
-                // Track OAuth token acquisition timing for chain target
-                var oauthStopwatch = System.Diagnostics.Stopwatch.StartNew();
+                // Track OAuth token acquisition timing for chain target using ValueStopwatch (allocation-free)
+                var oauthStopwatch = ValueStopwatch.StartNew();
                 var token = await _oauthService.AcquireTokenAsync("__chain_target__", chainTarget, context.RequestAborted);
-                oauthStopwatch.Stop();
 
                 var authHeaderValue = token.GetAuthorizationHeaderValue();
                 forwardedRequest.Headers.TryAddWithoutValidation("Authorization", authHeaderValue);
 
                 // Add chain OAuth attributes to New Relic transaction
-                transaction.AddCustomAttribute("tokenrelay.chain_oauth_used", true);
-                transaction.AddCustomAttribute("tokenrelay.chain_oauth_token_type", token.TokenType ?? "unknown");
-                transaction.AddCustomAttribute("tokenrelay.chain_oauth_acquire_time_ms", oauthStopwatch.ElapsedMilliseconds);
+                transaction?.AddCustomAttribute("tokenrelay.chain_oauth_used", true);
+                transaction?.AddCustomAttribute("tokenrelay.chain_oauth_token_type", token.TokenType ?? "unknown");
+                transaction?.AddCustomAttribute("tokenrelay.chain_oauth_acquire_time_ms", oauthStopwatch.GetElapsedMilliseconds());
 
                 _logger.LogDebug("ProxyService: Added OAuth Authorization header for chain target (type: {TokenType}) in {ElapsedMs}ms",
-                    token.TokenType, oauthStopwatch.ElapsedMilliseconds);
+                    token.TokenType, oauthStopwatch.GetElapsedMilliseconds());
             }
             catch (Exception ex)
             {
-                transaction.AddCustomAttribute("tokenrelay.chain_oauth_error", true);
+                transaction?.AddCustomAttribute("tokenrelay.chain_oauth_error", true);
                 _logger.LogError(ex, "ProxyService: Failed to acquire OAuth token for chain target");
                 throw new HttpRequestException(
                     $"Failed to acquire OAuth token for chain target: {ex.Message}",
@@ -469,16 +469,15 @@ public class ProxyService : IProxyService
                 forwardedRequest.Content?.Headers.ContentLength?.ToString() ?? "none",
                 forwardedRequest.Headers.Count());
 
-            var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+            var stopwatch = ValueStopwatch.StartNew();
             var response = await httpClient.SendAsync(forwardedRequest, HttpCompletionOption.ResponseHeadersRead);
-            stopwatch.Stop();
 
             _logger.LogInformation("ProxyService: Chain mode - received {StatusCode} response from downstream proxy {TargetUrl} in {ElapsedMs}ms",
-                response.StatusCode, SanitizeUrlForLogging(targetUrl), stopwatch.ElapsedMilliseconds);
+                response.StatusCode, SanitizeUrlForLogging(targetUrl), stopwatch.GetElapsedMilliseconds());
 
             // Add chain response attributes to New Relic
-            transaction.AddCustomAttribute("tokenrelay.chain_response_status", (int)response.StatusCode);
-            transaction.AddCustomAttribute("tokenrelay.chain_response_time_ms", stopwatch.ElapsedMilliseconds);
+            transaction?.AddCustomAttribute("tokenrelay.chain_response_status", (int)response.StatusCode);
+            transaction?.AddCustomAttribute("tokenrelay.chain_response_time_ms", stopwatch.GetElapsedMilliseconds());
 
             return response;
         }
@@ -610,36 +609,11 @@ public class ProxyService : IProxyService
 
     /// <summary>
     /// Sanitizes header value for logging by masking sensitive information.
+    /// Uses the centralized SanitizationHelper with truncation enabled.
     /// </summary>
     private static string SanitizeHeaderValueForLogging(string headerName, string headerValue)
     {
-        if (string.IsNullOrEmpty(headerValue))
-            return headerValue;
-
-        // List of sensitive headers that should be masked
-        var sensitiveHeaders = new[]
-        {
-            "Authorization",
-            "TOKEN-RELAY-AUTH",
-            "X-API-Key",
-            "API-Key",
-            "Cookie",
-            "Set-Cookie",
-            "X-Auth-Token",
-            "X-Access-Token",
-            "X-Refresh-Token",
-            "WWW-Authenticate",
-            "Proxy-Authorization",
-            "Proxy-Authenticate"
-        };
-
-        if (sensitiveHeaders.Contains(headerName, StringComparer.OrdinalIgnoreCase))
-        {
-            return "[REDACTED]";
-        }
-
-        // Truncate long values to prevent log bloat
-        return headerValue.Length > 100 ? $"{headerValue[..100]}..." : headerValue;
+        return SanitizationHelper.SanitizeHeaderValue(headerName, headerValue, truncateLength: 100);
     }
 
     /// <summary>
@@ -659,16 +633,10 @@ public class ProxyService : IProxyService
 
     /// <summary>
     /// Sanitizes user-provided strings for logging to prevent log injection attacks.
+    /// Uses the centralized SanitizationHelper.
     /// </summary>
     private static string SanitizeForLogging(string? input)
     {
-        if (string.IsNullOrEmpty(input))
-            return input ?? string.Empty;
-
-        // Remove newline characters and other control characters that could be used for log injection
-        return input
-            .Replace("\r", "")
-            .Replace("\n", "")
-            .Replace("\t", " ");
+        return SanitizationHelper.SanitizeForLogging(input);
     }
 }

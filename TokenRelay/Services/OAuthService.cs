@@ -3,6 +3,7 @@ using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
 using TokenRelay.Models;
+using TokenRelay.Utilities;
 
 namespace TokenRelay.Services;
 
@@ -521,40 +522,10 @@ public class OAuthService : IOAuthService
 
     /// <summary>
     /// Sanitizes OAuth response content for logging by removing sensitive fields.
+    /// Uses the centralized SanitizationHelper for consistent redaction.
     /// </summary>
     private static string SanitizeOAuthResponseForLogging(string responseContent)
     {
-        if (string.IsNullOrEmpty(responseContent))
-            return responseContent;
-
-        try
-        {
-            var json = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(responseContent);
-            if (json == null)
-                return "[unparseable response]";
-
-            // List of sensitive fields to redact
-            var sensitiveFields = new[] { "access_token", "refresh_token", "id_token", "token", "secret", "password", "client_secret" };
-            var sanitized = new Dictionary<string, object>();
-
-            foreach (var kvp in json)
-            {
-                if (sensitiveFields.Contains(kvp.Key, StringComparer.OrdinalIgnoreCase))
-                {
-                    sanitized[kvp.Key] = "[REDACTED]";
-                }
-                else
-                {
-                    sanitized[kvp.Key] = kvp.Value.ToString();
-                }
-            }
-
-            return JsonSerializer.Serialize(sanitized);
-        }
-        catch
-        {
-            // If we can't parse it as JSON, return a generic message
-            return "[response content redacted]";
-        }
+        return SanitizationHelper.SanitizeJsonContent(responseContent);
     }
 }
