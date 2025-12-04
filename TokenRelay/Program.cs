@@ -37,8 +37,38 @@ builder.Services.AddControllers();
 
 // Configure HttpClient with logging handler
 builder.Services.AddTransient<HttpLoggingHandler>();
-builder.Services.AddHttpClient("TokenRelayClient")
-    .AddHttpMessageHandler<HttpLoggingHandler>();
+
+// Configure default named HttpClient for standard use cases
+builder.Services.AddHttpClient(HttpClientService.StandardClientName)
+    .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler
+    {
+        PooledConnectionLifetime = TimeSpan.FromMinutes(5),
+        PooledConnectionIdleTimeout = TimeSpan.FromMinutes(2),
+        MaxConnectionsPerServer = 100,
+        // Certificate validation enabled by default
+        SslOptions = new System.Net.Security.SslClientAuthenticationOptions
+        {
+            RemoteCertificateValidationCallback = null // Use default validation
+        }
+    })
+    .AddHttpMessageHandler<HttpLoggingHandler>()
+    .SetHandlerLifetime(Timeout.InfiniteTimeSpan); // Let SocketsHttpHandler manage connection lifetime
+
+// Configure HttpClient for targets that ignore certificate validation (dev/test only)
+builder.Services.AddHttpClient(HttpClientService.IgnoreCertsClientName)
+    .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler
+    {
+        PooledConnectionLifetime = TimeSpan.FromMinutes(5),
+        PooledConnectionIdleTimeout = TimeSpan.FromMinutes(2),
+        MaxConnectionsPerServer = 100,
+        // WARNING: Certificate validation disabled - use only in dev/test
+        SslOptions = new System.Net.Security.SslClientAuthenticationOptions
+        {
+            RemoteCertificateValidationCallback = (sender, certificate, chain, sslPolicyErrors) => true
+        }
+    })
+    .AddHttpMessageHandler<HttpLoggingHandler>()
+    .SetHandlerLifetime(Timeout.InfiniteTimeSpan);
 
 // Also add the default HttpClient factory for backward compatibility
 builder.Services.AddHttpClient();
@@ -56,6 +86,7 @@ builder.Services.AddScoped<IProxyService, ProxyService>();
 builder.Services.AddSingleton<IPluginService, PluginService>();
 builder.Services.AddSingleton<IMemoryLogService, MemoryLogService>();
 builder.Services.AddSingleton<ILogLevelService, LogLevelService>();
+builder.Services.AddSingleton<IHttpClientService, HttpClientService>();
 builder.Services.AddHostedService<LogCleanupService>();
 
 // Note: Memory logging provider will be added after app.Build() to avoid circular dependency
