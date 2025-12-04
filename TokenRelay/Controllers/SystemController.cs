@@ -305,7 +305,7 @@ public class SystemController : ControllerBase
 
     private static string GetApplicationVersion()
     {
-        var hardcodedVersion = "3";
+        var hardcodedVersion = "4";
 
         /*
         // Try to get version from environment variables first (Docker/deployment)
