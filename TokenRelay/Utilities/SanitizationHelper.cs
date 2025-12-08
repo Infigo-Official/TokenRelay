@@ -231,7 +231,8 @@ public static class SanitizationHelper
 
     /// <summary>
     /// Sanitizes user-provided strings for logging to prevent log injection attacks.
-    /// Removes newline characters and other control characters.
+    /// Removes all ASCII control characters (0x00-0x1F and 0x7F) that could be used
+    /// to inject fake log entries or manipulate log output.
     /// </summary>
     /// <param name="input">The input string to sanitize.</param>
     /// <returns>The sanitized string safe for logging.</returns>
@@ -240,10 +241,24 @@ public static class SanitizationHelper
         if (string.IsNullOrEmpty(input))
             return input ?? string.Empty;
 
-        // Remove newline characters and other control characters that could be used for log injection
-        return input
-            .Replace("\r", "")
-            .Replace("\n", "")
-            .Replace("\t", " ");
+        // Remove all ASCII control characters that could be used for log injection
+        // This includes: NUL, SOH, STX, ETX, EOT, ENQ, ACK, BEL, BS, TAB, LF, VT, FF, CR,
+        // SO, SI, DLE, DC1-DC4, NAK, SYN, ETB, CAN, EM, SUB, ESC, FS, GS, RS, US, and DEL
+        var result = new System.Text.StringBuilder(input.Length);
+        foreach (var c in input)
+        {
+            if (c < 0x20 || c == 0x7F)
+            {
+                // Replace control characters with space for tabs, empty for others
+                if (c == '\t')
+                    result.Append(' ');
+                // Skip other control characters entirely
+            }
+            else
+            {
+                result.Append(c);
+            }
+        }
+        return result.ToString();
     }
 }

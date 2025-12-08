@@ -50,7 +50,7 @@ public class ProxyService : IProxyService
         transaction?.AddCustomAttribute("tokenrelay.method", context.Request.Method);
 
         _logger.LogDebug("ProxyService: Starting request forwarding for target '{TargetName}', path '{Path}', mode '{Mode}' from {ClientIP}",
-            targetName, remainingPath, proxyConfig.Mode, clientIP);
+            SanitizeForLogging(targetName), SanitizeForLogging(remainingPath), proxyConfig.Mode, clientIP);
         
         // Check if we're in chain mode
         if (proxyConfig.Mode.Equals("chain", StringComparison.OrdinalIgnoreCase))
@@ -65,12 +65,12 @@ public class ProxyService : IProxyService
         var target = _configService.GetTargetConfig(targetName);
         if (target == null)
         {
-            _logger.LogWarning("ProxyService: Target '{TargetName}' not found in configuration or not enabled.", targetName);
+            _logger.LogWarning("ProxyService: Target '{TargetName}' not found in configuration or not enabled.", SanitizeForLogging(targetName));
             throw new ArgumentException($"Target '{targetName}' not found in configuration or not enabled.");
         }
 
-        _logger.LogDebug("ProxyService: Target '{TargetName}' resolved to endpoint '{Endpoint}'", 
-            targetName, target.Endpoint);
+        _logger.LogDebug("ProxyService: Target '{TargetName}' resolved to endpoint '{Endpoint}'",
+            SanitizeForLogging(targetName), SanitizeUrlForLogging(target.Endpoint));
 
         using var httpClient = _httpClientService.GetClientForTarget(target, proxyConfig.TimeoutSeconds);
 
@@ -134,7 +134,7 @@ public class ProxyService : IProxyService
         {
             try
             {
-                _logger.LogDebug("ProxyService: Target '{TargetName}' uses OAuth, acquiring token", targetName);
+                _logger.LogDebug("ProxyService: Target '{TargetName}' uses OAuth, acquiring token", SanitizeForLogging(targetName));
 
                 // Track OAuth token acquisition timing using ValueStopwatch (allocation-free)
                 var oauthStopwatch = ValueStopwatch.StartNew();
@@ -150,12 +150,12 @@ public class ProxyService : IProxyService
                 transaction?.AddCustomAttribute("tokenrelay.oauth_acquire_time_ms", oauthStopwatch.GetElapsedMilliseconds());
 
                 _logger.LogDebug("ProxyService: Added OAuth Authorization header for target '{TargetName}' (type: {TokenType}) in {ElapsedMs}ms",
-                    targetName, token.TokenType, oauthStopwatch.GetElapsedMilliseconds());
+                    SanitizeForLogging(targetName), token.TokenType, oauthStopwatch.GetElapsedMilliseconds());
             }
             catch (Exception ex)
             {
                 transaction?.AddCustomAttribute("tokenrelay.oauth_error", true);
-                _logger.LogError(ex, "ProxyService: Failed to acquire OAuth token for target '{TargetName}'", targetName);
+                _logger.LogError(ex, "ProxyService: Failed to acquire OAuth token for target '{TargetName}'", SanitizeForLogging(targetName));
                 throw new HttpRequestException(
                     $"Failed to acquire OAuth token for target '{targetName}': {ex.Message}",
                     ex);
@@ -297,7 +297,7 @@ public class ProxyService : IProxyService
         transaction?.AddCustomAttribute("tokenrelay.chain_endpoint", SanitizationHelper.SanitizeUrlForLogging(chainTarget.Endpoint));
 
         _logger.LogDebug("ProxyService: Chain mode - forwarding to downstream proxy '{ChainEndpoint}' for target '{TargetName}' from {ClientIP}",
-            chainTarget.Endpoint, targetName, clientIP);
+            SanitizeUrlForLogging(chainTarget.Endpoint), SanitizeForLogging(targetName), clientIP);
         
         if (string.IsNullOrEmpty(chainTarget.Endpoint))
         {
@@ -386,7 +386,7 @@ public class ProxyService : IProxyService
 
         // Preserve the original TOKEN-RELAY-TARGET header so the downstream proxy knows the target
         forwardedRequest.Headers.TryAddWithoutValidation("TOKEN-RELAY-TARGET", targetName);
-        _logger.LogDebug("ProxyService: Chain mode - preserved TOKEN-RELAY-TARGET: {TargetName}", targetName);
+        _logger.LogDebug("ProxyService: Chain mode - preserved TOKEN-RELAY-TARGET: {TargetName}", SanitizeForLogging(targetName));
 
         // Set the auth token for the target proxy
         forwardedRequest.Headers.TryAddWithoutValidation("TOKEN-RELAY-AUTH", $"{proxyConfig.Chain.TargetProxy.Token}");
