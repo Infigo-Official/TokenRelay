@@ -1,5 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using TokenRelay.Services;
+using TokenRelay.Utilities;
+using NewRelic.Api.Agent;
 
 namespace TokenRelay.Controllers;
 
@@ -50,14 +52,18 @@ public class ProxyController : ControllerBase
                 return BadRequest("TOKEN-RELAY-TARGET header cannot be empty");
             }
 
+            // Set custom transaction name in New Relic for better grouping
+            // Transactions will appear as "Proxy/Forward/{targetName}" instead of generic controller name
+            NewRelic.Api.Agent.NewRelic.SetTransactionName("Proxy", $"Forward/{SanitizeForLogging(targetName)}");
+
             _logger.LogInformation("Processing {Method} proxy request to target '{TargetName}' path '{Path}' from {ClientIP}",
                 method, SanitizeForLogging(targetName), SanitizeForLogging(fullPath), clientIP);
             
             // Log request details at debug level
-            _logger.LogDebug("Request details - Content-Length: {ContentLength}, Content-Type: {ContentType}, Query: {QueryString}", 
-                HttpContext.Request.ContentLength ?? 0, 
-                HttpContext.Request.ContentType ?? "none",
-                HttpContext.Request.QueryString.HasValue ? HttpContext.Request.QueryString.Value : "none");
+            _logger.LogDebug("Request details - Content-Length: {ContentLength}, Content-Type: {ContentType}, Query: {QueryString}",
+                HttpContext.Request.ContentLength ?? 0,
+                SanitizeForLogging(HttpContext.Request.ContentType) ?? "none",
+                HttpContext.Request.QueryString.HasValue ? SanitizeForLogging(HttpContext.Request.QueryString.Value) : "none");
 
             // Forward the request
             using var response = await _proxyService.ForwardRequestAsync(HttpContext, targetName, fullPath);
@@ -170,17 +176,10 @@ public class ProxyController : ControllerBase
 
     /// <summary>
     /// Sanitizes user-controlled input for logging to prevent log injection attacks.
-    /// Removes newline characters and other control characters that could be used to inject fake log entries.
+    /// Uses the centralized SanitizationHelper for consistent sanitization across the application.
     /// </summary>
     private static string SanitizeForLogging(string? input)
     {
-        if (string.IsNullOrEmpty(input))
-            return input ?? string.Empty;
-
-        // Remove newline characters and other control characters that could be used for log injection
-        return input
-            .Replace("\r", "")
-            .Replace("\n", "")
-            .Replace("\t", " ");
+        return SanitizationHelper.SanitizeForLogging(input);
     }
 }

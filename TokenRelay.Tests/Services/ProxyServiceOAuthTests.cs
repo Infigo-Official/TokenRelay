@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Moq;
 using TokenRelay.Models;
@@ -40,12 +41,16 @@ public class ProxyServiceOAuthTests
         mockConfigService.Setup(c => c.GetTargetConfig("test-target")).Returns(target);
         mockConfigService.Setup(c => c.GetProxyConfig()).Returns(new ProxyConfig { TimeoutSeconds = 300 });
 
+        // Create a mock service provider
+        var mockServiceProvider = new Mock<IServiceProvider>();
+
         // Act - Verify service can be constructed with IOAuthService
         var proxyService = new ProxyService(
             mockHttpClientFactory.Object,
             mockConfigService.Object,
             mockLogger.Object,
-            mockOAuthService.Object);
+            mockOAuthService.Object,
+            mockServiceProvider.Object);
 
         // Assert - Service created successfully with OAuth support
         Assert.NotNull(proxyService);

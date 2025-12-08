@@ -1,4 +1,5 @@
 using System.Text;
+using TokenRelay.Utilities;
 
 namespace TokenRelay.Middleware;
 
@@ -59,13 +60,13 @@ public class HttpLoggingHandler : DelegatingHandler
         sb.AppendLine($"{request.Method} {request.RequestUri}");
         sb.AppendLine($"HTTP/{request.Version}");
         
-        // Log headers
+        // Log headers (sanitizing sensitive ones)
         sb.AppendLine("Headers:");
         foreach (var header in request.Headers)
         {
             foreach (var value in header.Value)
             {
-                sb.AppendLine($"  {header.Key}: {value}");
+                sb.AppendLine($"  {header.Key}: {SanitizationHelper.SanitizeHeaderValue(header.Key, value)}");
             }
         }
 
@@ -76,24 +77,27 @@ public class HttpLoggingHandler : DelegatingHandler
             {
                 foreach (var value in header.Value)
                 {
-                    sb.AppendLine($"  {header.Key}: {value}");
+                    sb.AppendLine($"  {header.Key}: {SanitizationHelper.SanitizeHeaderValue(header.Key, value)}");
                 }
             }
 
             sb.AppendLine();
-            
+
             try
             {
                 var contentType = request.Content.Headers.ContentType?.MediaType ?? "application/octet-stream";
-                
+
                 // Only log text-based content to avoid logging binary data
+                // But sanitize potential sensitive content (like OAuth credentials)
                 if (IsTextContent(contentType))
                 {
                     var content = await request.Content.ReadAsStringAsync();
                     if (!string.IsNullOrEmpty(content))
                     {
+                        var sanitizedContent = SanitizationHelper.SanitizeBodyContent(content, contentType);
+                        var bodyToLog = DebugEncryptionHelper.EncryptIfEnabled(sanitizedContent);
                         sb.AppendLine($"Body ({content.Length} chars):");
-                        sb.AppendLine(content);
+                        sb.AppendLine(bodyToLog);
                     }
                     else
                     {
@@ -117,7 +121,7 @@ public class HttpLoggingHandler : DelegatingHandler
         }
 
         sb.AppendLine("=== END REQUEST ===");
-        
+
         _logger.LogDebug("HttpLoggingHandler: {RequestLog}", sb.ToString());
     }
 
@@ -127,13 +131,13 @@ public class HttpLoggingHandler : DelegatingHandler
         sb.AppendLine($"=== HTTP RESPONSE {requestId} ({elapsedMs}ms) ===");
         sb.AppendLine($"HTTP/{response.Version} {(int)response.StatusCode} {response.StatusCode}");
         
-        // Log headers
+        // Log headers (sanitizing sensitive ones)
         sb.AppendLine("Headers:");
         foreach (var header in response.Headers)
         {
             foreach (var value in header.Value)
             {
-                sb.AppendLine($"  {header.Key}: {value}");
+                sb.AppendLine($"  {header.Key}: {SanitizationHelper.SanitizeHeaderValue(header.Key, value)}");
             }
         }
 
@@ -144,24 +148,27 @@ public class HttpLoggingHandler : DelegatingHandler
             {
                 foreach (var value in header.Value)
                 {
-                    sb.AppendLine($"  {header.Key}: {value}");
+                    sb.AppendLine($"  {header.Key}: {SanitizationHelper.SanitizeHeaderValue(header.Key, value)}");
                 }
             }
 
             sb.AppendLine();
-            
+
             try
             {
                 var contentType = response.Content.Headers.ContentType?.MediaType ?? "application/octet-stream";
-                
+
                 // Only log text-based content to avoid logging binary data
+                // But sanitize potential sensitive content (like OAuth token responses)
                 if (IsTextContent(contentType))
                 {
                     var content = await response.Content.ReadAsStringAsync();
                     if (!string.IsNullOrEmpty(content))
                     {
+                        var sanitizedContent = SanitizationHelper.SanitizeBodyContent(content, contentType);
+                        var bodyToLog = DebugEncryptionHelper.EncryptIfEnabled(sanitizedContent);
                         sb.AppendLine($"Body ({content.Length} chars):");
-                        sb.AppendLine(content);
+                        sb.AppendLine(bodyToLog);
                     }
                     else
                     {
@@ -185,7 +192,7 @@ public class HttpLoggingHandler : DelegatingHandler
         }
 
         sb.AppendLine("=== END RESPONSE ===");
-        
+
         _logger.LogDebug("HttpLoggingHandler: {ResponseLog}", sb.ToString());
     }
 
@@ -195,7 +202,7 @@ public class HttpLoggingHandler : DelegatingHandler
             return false;
 
         contentType = contentType.ToLowerInvariant();
-        
+
         return contentType.StartsWith("text/") ||
                contentType.StartsWith("application/json") ||
                contentType.StartsWith("application/xml") ||

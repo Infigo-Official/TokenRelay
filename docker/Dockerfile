@@ -51,8 +51,15 @@ RUN rm -f tokenrelay.json
 # Create directory for file uploads and logs
 RUN mkdir -p /app/uploads /app/logs
 
-# Install curl for health checks and ca-certificates for certificate management
-RUN apt-get update && apt-get install -y curl ca-certificates && rm -rf /var/lib/apt/lists/*
+# Install curl for health checks, ca-certificates, and New Relic .NET agent in a single layer
+# This reduces image size by avoiding multiple apt-get update calls
+RUN apt-get update \
+    && apt-get install -y curl ca-certificates gnupg \
+    && echo 'deb [signed-by=/usr/share/keyrings/newrelic-dotnet-agent-archive-keyring.gpg] http://apt.newrelic.com/debian/ newrelic non-free' | tee /etc/apt/sources.list.d/newrelic.list \
+    && curl -fsSL https://download.newrelic.com/548C16BF.gpg | gpg --dearmor -o /usr/share/keyrings/newrelic-dotnet-agent-archive-keyring.gpg \
+    && apt-get update \
+    && apt-get install -y newrelic-dotnet-agent \
+    && rm -rf /var/lib/apt/lists/*
 
 # Set environment variables
 ENV ASPNETCORE_ENVIRONMENT=Production
@@ -61,6 +68,16 @@ ENV ConfigPath=/app/tokenrelay.json
 ENV TOKENRELAY_VERSION=${VERSION}
 ENV BUILD_DATE=${BUILD_DATE}
 
+# New Relic APM environment variables (disabled by default)
+# Set NEW_RELIC_ENABLED=true to enable APM monitoring
+ENV NEW_RELIC_ENABLED=false
+ENV CORECLR_ENABLE_PROFILING=0
+ENV CORECLR_PROFILER={36032161-FFC0-4B61-B559-F6C5D41BAE5A}
+ENV CORECLR_NEWRELIC_HOME=/usr/local/newrelic-dotnet-agent
+ENV CORECLR_PROFILER_PATH=/usr/local/newrelic-dotnet-agent/libNewRelicProfiler.so
+# Distributed tracing enabled by default when New Relic is active
+ENV NEW_RELIC_DISTRIBUTED_TRACING_ENABLED=true
+
 # Create directory for certificates
 RUN mkdir -p /home/site/certs
 
@@ -68,7 +85,7 @@ RUN mkdir -p /home/site/certs
 RUN groupadd -r tokenrelay && useradd -r -g tokenrelay tokenrelay
 RUN chown -R tokenrelay:tokenrelay /app /home/site/certs
 
-# Create startup script that loads certificates and starts the application
+# Create startup script that loads certificates, configures New Relic, and starts the application
 # This script runs as root to update certificates, then drops to tokenrelay user
 RUN echo '#!/bin/sh\n\
 set -e\n\
@@ -82,6 +99,29 @@ if [ -d "/home/site/certs" ] && [ -n "$(ls -A /home/site/certs/*.crt 2>/dev/null
   echo "Certificate loading completed."\n\
 else\n\
   echo "No custom certificates found in /home/site/certs, skipping certificate loading."\n\
+fi\n\
+\n\
+# Configure New Relic APM based on NEW_RELIC_ENABLED environment variable\n\
+if [ "$NEW_RELIC_ENABLED" = "true" ]; then\n\
+  echo "New Relic APM is ENABLED"\n\
+  export CORECLR_ENABLE_PROFILING=1\n\
+  \n\
+  # Validate required environment variables\n\
+  if [ -z "$NEW_RELIC_LICENSE_KEY" ]; then\n\
+    echo "WARNING: NEW_RELIC_LICENSE_KEY is not set. New Relic will not report data."\n\
+  fi\n\
+  \n\
+  # Log Infinite Tracing status\n\
+  if [ -n "$NEW_RELIC_INFINITE_TRACING_TRACE_OBSERVER_HOST" ]; then\n\
+    echo "Infinite Tracing enabled with observer: $NEW_RELIC_INFINITE_TRACING_TRACE_OBSERVER_HOST"\n\
+  else\n\
+    echo "Infinite Tracing not configured (standard distributed tracing will be used)"\n\
+  fi\n\
+  \n\
+  echo "App Name: ${NEW_RELIC_APP_NAME:-TokenRelay}"\n\
+else\n\
+  echo "New Relic APM is DISABLED (set NEW_RELIC_ENABLED=true to enable)"\n\
+  export CORECLR_ENABLE_PROFILING=0\n\
 fi\n\
 \n\
 # Start the .NET application as tokenrelay user\n\

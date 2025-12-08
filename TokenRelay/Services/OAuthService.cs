@@ -3,6 +3,7 @@ using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
 using TokenRelay.Models;
+using TokenRelay.Utilities;
 
 namespace TokenRelay.Services;
 
@@ -188,11 +189,13 @@ public class OAuthService : IOAuthService
 
             if (!response.IsSuccessStatusCode)
             {
+                // Sanitize response to avoid logging sensitive data (error responses may still contain tokens)
+                var sanitizedResponse = SanitizeOAuthResponseForLogging(responseContent);
                 _logger.LogError("OAuthService: Token acquisition failed for target '{TargetName}' - Status: {StatusCode}, Response: {Response}",
-                    targetName, response.StatusCode, responseContent);
+                    targetName, response.StatusCode, sanitizedResponse);
                 Interlocked.Increment(ref _tokenAcquisitionFailures);
                 throw new HttpRequestException(
-                    $"OAuth token acquisition failed with status {response.StatusCode}: {responseContent}");
+                    $"OAuth token acquisition failed with status {response.StatusCode}");
             }
 
             _logger.LogInformation("OAuthService: Token acquired successfully for target '{TargetName}' in {ElapsedMs}ms",
@@ -233,11 +236,11 @@ public class OAuthService : IOAuthService
             // Validate that we have a valid access token
             if (string.IsNullOrWhiteSpace(token.AccessToken))
             {
-                _logger.LogError("OAuthService: Invalid token response for target '{TargetName}' - access_token is null or empty. Response: {Response}",
-                    targetName, responseContent);
+                _logger.LogError("OAuthService: Invalid token response for target '{TargetName}' - access_token is null or empty",
+                    targetName);
                 Interlocked.Increment(ref _tokenAcquisitionFailures);
                 throw new InvalidOperationException(
-                    $"Invalid token response from endpoint: access_token is null or empty. Response: {responseContent}");
+                    "Invalid token response from endpoint: access_token is null or empty");
             }
 
             _logger.LogDebug("OAuthService: Token details - Type: '{TokenType}', Expires in: {ExpiresIn}s, Expires at: {ExpiresAt}",
@@ -491,5 +494,14 @@ public class OAuthService : IOAuthService
                 : 0.0,
             ["cachedTargets"] = _tokenCache.Keys.ToList()
         };
+    }
+
+    /// <summary>
+    /// Sanitizes OAuth response content for logging by removing sensitive fields.
+    /// Uses the centralized SanitizationHelper for consistent redaction.
+    /// </summary>
+    private static string SanitizeOAuthResponseForLogging(string responseContent)
+    {
+        return SanitizationHelper.SanitizeJsonContent(responseContent);
     }
 }
