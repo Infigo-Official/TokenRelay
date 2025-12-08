@@ -37,7 +37,7 @@ public interface IOAuthService
 
 public class OAuthService : IOAuthService
 {
-    private readonly IHttpClientFactory _httpClientFactory;
+    private readonly IHttpClientService _httpClientService;
     private readonly ILogger<OAuthService> _logger;
 
     // Thread-safe token cache: targetName -> OAuthToken
@@ -54,10 +54,10 @@ public class OAuthService : IOAuthService
     private long _tokenAcquisitionFailures = 0;
 
     public OAuthService(
-        IHttpClientFactory httpClientFactory,
+        IHttpClientService httpClientService,
         ILogger<OAuthService> logger)
     {
-        _httpClientFactory = httpClientFactory;
+        _httpClientService = httpClientService;
         _logger = logger;
     }
 
@@ -156,7 +156,7 @@ public class OAuthService : IOAuthService
                 authData.GetValueOrDefault("client_id"),
                 authData.GetValueOrDefault("scope", "none"));
 
-            var httpClient = CreateHttpClient(target);
+            var httpClient = _httpClientService.GetClientForTarget(target);
 
             // Create a timeout cancellation token source (30 seconds for OAuth requests)
             using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
@@ -255,30 +255,6 @@ public class OAuthService : IOAuthService
             Interlocked.Increment(ref _tokenAcquisitionFailures);
             throw;
         }
-    }
-    
-    private HttpClient CreateHttpClient(TargetConfig target)
-    {
-        if (target.IgnoreCertificateValidation)
-        {
-            _logger.LogWarning("OAuthService: SSL certificate validation is DISABLED for this target. " +
-                               "This should only be used in development/testing environments!");
-
-            var handler = new HttpClientHandler
-            {
-                ServerCertificateCustomValidationCallback = (message, cert, chain, errors) =>
-                {
-                    // Accept all certificates
-                    _logger.LogDebug("OAuthService: Bypassing SSL certificate validation. Errors: {SslErrors}", errors);
-                    return true;
-                }
-            };
-
-            return new HttpClient(handler);
-        }
-
-        // Use factory for standard clients
-        return _httpClientFactory.CreateClient();
     }
 
     private string GetOrBuildTokenEndpoint(TargetConfig target)

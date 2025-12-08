@@ -11,39 +11,21 @@ public interface IProxyService
 
 public class ProxyService : IProxyService
 {
-    private readonly IHttpClientFactory _httpClientFactory;
+    private readonly IHttpClientService _httpClientService;
     private readonly IConfigurationService _configService;
     private readonly ILogger<ProxyService> _logger;
     private readonly IOAuthService _oauthService;
 
     public ProxyService(
-        IHttpClientFactory httpClientFactory,
+        IHttpClientService httpClientService,
         IConfigurationService configService,
         ILogger<ProxyService> logger,
         IOAuthService oauthService)
     {
-        _httpClientFactory = httpClientFactory;
+        _httpClientService = httpClientService;
         _configService = configService;
         _logger = logger;
         _oauthService = oauthService;
-    }
-
-    private HttpClient CreateHttpClientForTarget(TargetConfig target, ProxyConfig proxy)
-    {
-        var handler = new HttpClientHandler();
-        
-        if (target.IgnoreCertificateValidation)
-        {
-            _logger.LogInformation("ProxyService: Certificate validation is DISABLED for target endpoint: {Endpoint}.", 
-                target.Endpoint);
-            handler.ServerCertificateCustomValidationCallback = 
-                HttpClientHandler.DangerousAcceptAnyServerCertificateValidator;
-        }
-        
-        return new HttpClient(handler)
-        {
-            Timeout = TimeSpan.FromSeconds(proxy.TimeoutSeconds)
-        };
     }
 
     public async Task<HttpResponseMessage> ForwardRequestAsync(HttpContext context, string targetName, string remainingPath)
@@ -74,7 +56,7 @@ public class ProxyService : IProxyService
         _logger.LogDebug("ProxyService: Target '{TargetName}' resolved to endpoint '{Endpoint}'", 
             targetName, target.Endpoint);
 
-        using var httpClient = CreateHttpClientForTarget(target, proxyConfig);
+        using var httpClient = _httpClientService.GetClientForTarget(target, proxyConfig.TimeoutSeconds);
 
         _logger.LogDebug("ProxyService: HTTP client configured with timeout {TimeoutSeconds}s", proxyConfig.TimeoutSeconds);
 
@@ -255,7 +237,7 @@ public class ProxyService : IProxyService
             throw new InvalidOperationException("Chain mode is enabled but no target proxy endpoint configured");
         }
 
-        using var httpClient = CreateHttpClientForTarget(chainTarget, proxyConfig);
+        using var httpClient = _httpClientService.GetClientForTarget(chainTarget, proxyConfig.TimeoutSeconds);
 
         // Build target URL - forward to the chain proxy with the same path
         var targetUrl = CombineUrls(chainTarget.Endpoint, $"proxy/{remainingPath}");
