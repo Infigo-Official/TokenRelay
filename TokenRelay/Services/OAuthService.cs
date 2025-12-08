@@ -163,6 +163,10 @@ public class OAuthService : IOAuthService
             using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
             using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeoutCts.Token);
 
+            // Create request with request-specific headers (thread-safe, doesn't modify shared HttpClient)
+            using var request = new HttpRequestMessage(HttpMethod.Post, tokenEndpoint);
+            request.Content = new FormUrlEncodedContent(formData);
+
             // Add Basic Auth if client_secret is provided (but not for password grant type - it goes in form body)
             var grantType = authData.GetValueOrDefault("grant_type")?.ToLowerInvariant();
             if (authData.TryGetValue("client_secret", out var clientSecret) &&
@@ -172,17 +176,13 @@ public class OAuthService : IOAuthService
             {
                 var credentials = Convert.ToBase64String(
                     Encoding.UTF8.GetBytes($"{clientId}:{clientSecret}"));
-                httpClient.DefaultRequestHeaders.Authorization =
-                    new AuthenticationHeaderValue("Basic", credentials);
+                request.Headers.Authorization = new AuthenticationHeaderValue("Basic", credentials);
 
                 _logger.LogDebug("OAuthService: Using Basic Authentication with client credentials");
             }
 
             var stopwatch = System.Diagnostics.Stopwatch.StartNew();
-            var response = await httpClient.PostAsync(
-                tokenEndpoint,
-                new FormUrlEncodedContent(formData),
-                linkedCts.Token);
+            var response = await httpClient.SendAsync(request, linkedCts.Token);
             stopwatch.Stop();
 
             var responseContent = await response.Content.ReadAsStringAsync(linkedCts.Token);

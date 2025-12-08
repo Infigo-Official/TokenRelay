@@ -51,10 +51,11 @@ RUN rm -f tokenrelay.json
 # Create directory for file uploads and logs
 RUN mkdir -p /app/uploads /app/logs
 
-# Install curl for health checks, ca-certificates, and New Relic .NET agent in a single layer
+# Install curl for health checks, ca-certificates, network tools, and New Relic .NET agent in a single layer
 # This reduces image size by avoiding multiple apt-get update calls
+# iproute2 provides 'ss' for socket statistics, dnsutils provides 'nslookup' and 'dig'
 RUN apt-get update \
-    && apt-get install -y curl ca-certificates gnupg \
+    && apt-get install -y curl ca-certificates gnupg iproute2 dnsutils \
     && echo 'deb [signed-by=/usr/share/keyrings/newrelic-dotnet-agent-archive-keyring.gpg] http://apt.newrelic.com/debian/ newrelic non-free' | tee /etc/apt/sources.list.d/newrelic.list \
     && curl -fsSL https://download.newrelic.com/548C16BF.gpg | gpg --dearmor -o /usr/share/keyrings/newrelic-dotnet-agent-archive-keyring.gpg \
     && apt-get update \

@@ -72,7 +72,7 @@ public class ProxyService : IProxyService
         _logger.LogDebug("ProxyService: Target '{TargetName}' resolved to endpoint '{Endpoint}'",
             SanitizeForLogging(targetName), SanitizeUrlForLogging(target.Endpoint));
 
-        using var httpClient = _httpClientService.GetClientForTarget(target, proxyConfig.TimeoutSeconds);
+        var httpClient = _httpClientService.GetClientForTarget(target, proxyConfig.TimeoutSeconds);
 
         _logger.LogDebug("ProxyService: HTTP client configured with timeout {TimeoutSeconds}s", proxyConfig.TimeoutSeconds);
 
