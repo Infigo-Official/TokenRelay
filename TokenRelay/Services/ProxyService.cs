@@ -14,49 +14,26 @@ public interface IProxyService
 
 public class ProxyService : IProxyService
 {
-    private readonly IHttpClientFactory _httpClientFactory;
+    private readonly IHttpClientService _httpClientService;
     private readonly IConfigurationService _configService;
     private readonly ILogger<ProxyService> _logger;
     private readonly IOAuthService _oauthService;
     private readonly IServiceProvider _serviceProvider;
 
     public ProxyService(
-        IHttpClientFactory httpClientFactory,
+        IHttpClientService httpClientService,
         IConfigurationService configService,
         ILogger<ProxyService> logger,
         IOAuthService oauthService,
         IServiceProvider serviceProvider)
     {
-        _httpClientFactory = httpClientFactory;
+        _httpClientService = httpClientService;
         _configService = configService;
         _logger = logger;
         _oauthService = oauthService;
         _serviceProvider = serviceProvider;
     }
 
-    private HttpClient CreateHttpClientForTarget(TargetConfig target, ProxyConfig proxy)
-    {
-        var handler = new HttpClientHandler();
-
-        if (target.IgnoreCertificateValidation)
-        {
-            _logger.LogInformation("ProxyService: Certificate validation is DISABLED for target endpoint: {Endpoint}.",
-                target.Endpoint);
-            handler.ServerCertificateCustomValidationCallback =
-                HttpClientHandler.DangerousAcceptAnyServerCertificateValidator;
-        }
-
-        // Chain the HttpLoggingHandler for debug logging with encryption support
-        var loggingHandler = _serviceProvider.GetRequiredService<HttpLoggingHandler>();
-        loggingHandler.InnerHandler = handler;
-
-        return new HttpClient(loggingHandler)
-        {
-            Timeout = TimeSpan.FromSeconds(proxy.TimeoutSeconds)
-        };
-    }
-
-    [Trace]
     public async Task<HttpResponseMessage> ForwardRequestAsync(HttpContext context, string targetName, string remainingPath)
     {
         var proxyConfig = _configService.GetProxyConfig();
@@ -95,7 +72,7 @@ public class ProxyService : IProxyService
         _logger.LogDebug("ProxyService: Target '{TargetName}' resolved to endpoint '{Endpoint}'", 
             targetName, target.Endpoint);
 
-        var httpClient = CreateHttpClientForTarget(target, proxyConfig);
+        using var httpClient = _httpClientService.GetClientForTarget(target, proxyConfig.TimeoutSeconds);
 
         _logger.LogDebug("ProxyService: HTTP client configured with timeout {TimeoutSeconds}s", proxyConfig.TimeoutSeconds);
 
@@ -109,7 +86,7 @@ public class ProxyService : IProxyService
         _logger.LogDebug("ProxyService: Final target URL constructed: {TargetUrl}", SanitizeUrlForLogging(targetUrl));
 
         // Create the forwarded request
-        var forwardedRequest = new HttpRequestMessage(
+        using var forwardedRequest = new HttpRequestMessage(
             new HttpMethod(context.Request.Method),
             targetUrl);
 
@@ -328,7 +305,7 @@ public class ProxyService : IProxyService
             throw new InvalidOperationException("Chain mode is enabled but no target proxy endpoint configured");
         }
 
-        var httpClient = CreateHttpClientForTarget(chainTarget, proxyConfig);
+        using var httpClient = _httpClientService.GetClientForTarget(chainTarget, proxyConfig.TimeoutSeconds);
 
         // Build target URL - forward to the chain proxy with the same path
         var targetUrl = CombineUrls(chainTarget.Endpoint, $"proxy/{remainingPath}");
@@ -340,7 +317,7 @@ public class ProxyService : IProxyService
         _logger.LogDebug("ProxyService: Chain target URL constructed: {TargetUrl}", SanitizeUrlForLogging(targetUrl));
 
         // Create the forwarded request
-        var forwardedRequest = new HttpRequestMessage(
+        using var forwardedRequest = new HttpRequestMessage(
             new HttpMethod(context.Request.Method),
             targetUrl);
 
@@ -427,16 +404,16 @@ public class ProxyService : IProxyService
             context.Request.Headers.TransferEncoding.Any(te => te == "chunked"))
         {
             _logger.LogDebug("ProxyService: Chain mode - buffering request body for reliable transmission");
-            
+
             // For chain mode, buffer the request body to ensure reliable transmission
             // between proxy instances using CopyToAsync for all cases
-            _logger.LogDebug("ProxyService: Chain mode - reading request body (Content-Length: {ContentLength})", 
+            _logger.LogDebug("ProxyService: Chain mode - reading request body (Content-Length: {ContentLength})",
                 context.Request.ContentLength?.ToString() ?? "unknown");
-            
+
             using var memoryStream = new MemoryStream();
             await context.Request.Body.CopyToAsync(memoryStream);
             var content = new ByteArrayContent(memoryStream.ToArray());
-            _logger.LogDebug("ProxyService: Chain mode - buffered {BufferedSize} bytes from stream (original Content-Length: {OriginalLength})", 
+            _logger.LogDebug("ProxyService: Chain mode - buffered {BufferedSize} bytes from stream (original Content-Length: {OriginalLength})",
                 memoryStream.Length, context.Request.ContentLength?.ToString() ?? "unknown");
 
             // Copy content headers (but let ByteArrayContent set Content-Length)
@@ -451,7 +428,7 @@ public class ProxyService : IProxyService
                         _logger.LogDebug("ProxyService: Chain mode - skipping Content-Length header (will be set by ByteArrayContent)");
                         continue;
                     }
-                    
+
                     content.Headers.TryAddWithoutValidation(header.Key, header.Value.ToArray());
                     contentHeaderCount++;
                     var headerValue = string.Join(", ", header.Value.ToArray());

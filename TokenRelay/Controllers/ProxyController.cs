@@ -65,7 +65,7 @@ public class ProxyController : ControllerBase
                 HttpContext.Request.QueryString.HasValue ? HttpContext.Request.QueryString.Value : "none");
 
             // Forward the request
-            var response = await _proxyService.ForwardRequestAsync(HttpContext, targetName, fullPath);
+            using var response = await _proxyService.ForwardRequestAsync(HttpContext, targetName, fullPath);
 
             _logger.LogInformation("Proxy request completed - {Method} to '{TargetName}' returned {StatusCode} from {ClientIP}",
                 method, SanitizeForLogging(targetName), (int)response.StatusCode, clientIP);

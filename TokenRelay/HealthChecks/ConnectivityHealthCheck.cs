@@ -48,7 +48,7 @@ public class ConnectivityHealthCheck : IHealthCheck
                 try
                 {
                     var testUrl = new Uri(target.Value.HealthCheckUrl).ToString();
-                    var response = await httpClient.GetAsync(testUrl, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+                    using var response = await httpClient.GetAsync(testUrl, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
 
                     if (response.IsSuccessStatusCode || response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
                     {
