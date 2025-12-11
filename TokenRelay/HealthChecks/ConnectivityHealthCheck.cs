@@ -1,4 +1,6 @@
+using System.Net.Sockets;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
+using TokenRelay.Models;
 using TokenRelay.Services;
 
 namespace TokenRelay.HealthChecks;
@@ -9,9 +11,10 @@ public class ConnectivityHealthCheck : IHealthCheck
     private readonly IConfigurationService _configService;
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly ILogger<ConnectivityHealthCheck> _logger;
+    private static readonly TimeSpan HealthCheckTimeout = TimeSpan.FromSeconds(5);
 
     public ConnectivityHealthCheck(
-        IProxyService proxyService, 
+        IProxyService proxyService,
         IConfigurationService configService,
         IHttpClientFactory httpClientFactory,
         ILogger<ConnectivityHealthCheck> logger)
@@ -33,31 +36,41 @@ public class ConnectivityHealthCheck : IHealthCheck
             var skippedTargets = new List<string>();
 
             using var httpClient = _httpClientFactory.CreateClient();
-            // Quick health check timeout of 5 second to avoid long delays in the health check
-            httpClient.Timeout = TimeSpan.FromSeconds(5); 
+            httpClient.Timeout = HealthCheckTimeout;
 
             foreach (var target in config.Targets)
             {
-                // Skip targets without health check URL
-                if (string.IsNullOrWhiteSpace(target.Value.HealthCheckUrl))
+                var healthConfig = target.Value.EffectiveHealthCheck;
+
+                // Skip targets without health check configuration or disabled health checks
+                if (healthConfig == null || string.IsNullOrWhiteSpace(healthConfig.Url))
                 {
-                    skippedTargets.Add($"{target.Key} (no health check URL configured)");
+                    skippedTargets.Add($"{target.Key} (no health check configured)");
+                    continue;
+                }
+
+                if (!healthConfig.Enabled)
+                {
+                    skippedTargets.Add($"{target.Key} (health check disabled)");
                     continue;
                 }
 
                 try
                 {
-                    var testUrl = new Uri(target.Value.HealthCheckUrl).ToString();
-                    using var response = await httpClient.GetAsync(testUrl, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
-
-                    if (response.IsSuccessStatusCode || response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+                    var isHealthy = healthConfig.Type switch
                     {
-                        // Consider 401 as healthy since the service is responding
+                        HealthCheckType.TcpConnect => await CheckTcpConnectAsync(healthConfig.Url, cancellationToken),
+                        HealthCheckType.HttpGet => await CheckHttpGetAsync(httpClient, healthConfig.Url, cancellationToken),
+                        _ => await CheckHttpGetAsync(httpClient, healthConfig.Url, cancellationToken)
+                    };
+
+                    if (isHealthy)
+                    {
                         healthyTargets.Add(target.Key);
                     }
                     else
                     {
-                        unhealthyTargets.Add($"{target.Key} ({response.StatusCode})");
+                        unhealthyTargets.Add($"{target.Key} (check failed)");
                     }
                 }
                 catch (TaskCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -66,11 +79,12 @@ public class ConnectivityHealthCheck : IHealthCheck
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogWarning(ex, "Health check failed for target {Target}", target.Key);
+                    _logger.LogWarning(ex, "Health check failed for target {Target} using {CheckType}",
+                        target.Key, healthConfig.Type);
                     unhealthyTargets.Add($"{target.Key} (connection failed)");
                 }
             }
-            
+
             var data = new Dictionary<string, object>
             {
                 { "total_targets", config.Targets.Count },
@@ -80,10 +94,10 @@ public class ConnectivityHealthCheck : IHealthCheck
                 { "unhealthy_targets", unhealthyTargets.Count }
             };
 
-            // If no targets have health check URLs configured
+            // If no targets have health checks configured
             if (skippedTargets.Count == config.Targets.Count)
             {
-                return HealthCheckResult.Healthy("No health check URLs configured for targets", data: data);
+                return HealthCheckResult.Healthy("No health checks configured for targets", data: data);
             }
 
             if (unhealthyTargets.Any() && !healthyTargets.Any())
@@ -104,7 +118,7 @@ public class ConnectivityHealthCheck : IHealthCheck
             var successMessage = $"All {healthyTargets.Count} checked targets are reachable";
             if (skippedTargets.Any())
             {
-                successMessage += $". Skipped {skippedTargets.Count} targets without health check URLs";
+                successMessage += $". Skipped {skippedTargets.Count} targets without health checks";
             }
             return HealthCheckResult.Healthy(successMessage, data: data);
         }
@@ -113,5 +127,36 @@ public class ConnectivityHealthCheck : IHealthCheck
             _logger.LogError(ex, "Connectivity health check failed");
             return HealthCheckResult.Unhealthy($"Connectivity check failed: {ex.Message}");
         }
+    }
+
+    /// <summary>
+    /// Performs an HTTP GET request to check if the endpoint is healthy.
+    /// </summary>
+    private async Task<bool> CheckHttpGetAsync(HttpClient httpClient, string url, CancellationToken cancellationToken)
+    {
+        var testUrl = new Uri(url).ToString();
+        using var response = await httpClient.GetAsync(testUrl, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+
+        // Consider 2xx or 401 as healthy since the service is responding
+        return response.IsSuccessStatusCode || response.StatusCode == System.Net.HttpStatusCode.Unauthorized;
+    }
+
+    /// <summary>
+    /// Performs a TCP socket connection to check if the host:port is reachable.
+    /// No HTTP request is made - just verifies network connectivity.
+    /// </summary>
+    private async Task<bool> CheckTcpConnectAsync(string url, CancellationToken cancellationToken)
+    {
+        var uri = new Uri(url);
+        var port = uri.Port > 0 ? uri.Port : (uri.Scheme.Equals("https", StringComparison.OrdinalIgnoreCase) ? 443 : 80);
+
+        using var tcpClient = new TcpClient();
+
+        // Create a timeout cancellation token
+        using var timeoutCts = new CancellationTokenSource(HealthCheckTimeout);
+        using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeoutCts.Token);
+
+        await tcpClient.ConnectAsync(uri.Host, port, linkedCts.Token);
+        return tcpClient.Connected;
     }
 }

@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace TokenRelay.Models;
 
 public class ProxyConfig
@@ -44,7 +46,45 @@ public class ProxyPermissionsConfig
 public class TargetConfig
 {
     public string Endpoint { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Legacy health check URL property. Use HealthCheck for new configurations.
+    /// Kept for backward compatibility.
+    /// </summary>
     public string? HealthCheckUrl { get; set; }
+
+    /// <summary>
+    /// New structured health check configuration with type support.
+    /// Takes precedence over HealthCheckUrl when both are specified.
+    /// </summary>
+    public HealthCheckConfig? HealthCheck { get; set; }
+
+    /// <summary>
+    /// Gets the effective health check configuration, resolving backward compatibility.
+    /// Returns HealthCheck if set, otherwise creates config from HealthCheckUrl.
+    /// </summary>
+    [JsonIgnore]
+    public HealthCheckConfig? EffectiveHealthCheck
+    {
+        get
+        {
+            // New HealthCheck property takes precedence
+            if (HealthCheck != null)
+                return HealthCheck;
+
+            // Fall back to legacy HealthCheckUrl
+            if (!string.IsNullOrWhiteSpace(HealthCheckUrl))
+                return new HealthCheckConfig
+                {
+                    Url = HealthCheckUrl,
+                    Enabled = true,
+                    Type = HealthCheckType.HttpGet
+                };
+
+            return null;
+        }
+    }
+
     public string Description { get; set; } = string.Empty;
     public Dictionary<string, string> Headers { get; set; } = new();
     public bool Enabled { get; set; } = true;
@@ -60,6 +100,47 @@ public class TargetConfig
 
     // OAuth authentication data (generic key-value pairs)
     public Dictionary<string, string> AuthData { get; set; } = new();
+}
+
+/// <summary>
+/// Health check configuration for target endpoints.
+/// </summary>
+public class HealthCheckConfig
+{
+    /// <summary>
+    /// The URL to check. Can be absolute or relative (relative URLs are resolved against the target endpoint).
+    /// </summary>
+    public string Url { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Whether the health check is enabled. Default is true.
+    /// </summary>
+    public bool Enabled { get; set; } = true;
+
+    /// <summary>
+    /// The type of health check to perform. Default is HttpGet.
+    /// </summary>
+    [JsonConverter(typeof(JsonStringEnumConverter))]
+    public HealthCheckType Type { get; set; } = HealthCheckType.HttpGet;
+}
+
+/// <summary>
+/// Types of health checks supported.
+/// </summary>
+[JsonConverter(typeof(JsonStringEnumConverter))]
+public enum HealthCheckType
+{
+    /// <summary>
+    /// Performs an HTTP GET request and validates the response status code.
+    /// Success: 2xx or 401 status codes.
+    /// </summary>
+    HttpGet,
+
+    /// <summary>
+    /// Opens a TCP socket connection to verify the host:port is reachable.
+    /// No HTTP request is made - just verifies network connectivity.
+    /// </summary>
+    TcpConnect
 }
 
 public class PluginConfig

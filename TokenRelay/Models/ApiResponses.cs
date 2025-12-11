@@ -27,7 +27,14 @@ public class TargetInfo
     public bool Enabled { get; set; } = true;
     public bool IsOverridden { get; set; } = false;
     public string? Endpoint { get; set; }
+    /// <summary>
+    /// Legacy health check URL. Use HealthCheck for full configuration details.
+    /// </summary>
     public string? HealthCheckUrl { get; set; }
+    /// <summary>
+    /// Full health check configuration including type (HttpGet, TcpConnect).
+    /// </summary>
+    public HealthCheckConfig? HealthCheck { get; set; }
     public Dictionary<string, string>? Headers { get; set; }
     public bool IgnoreCertificateValidation { get; set; } = false;
 }
@@ -49,7 +56,14 @@ public class ChainInfo
 {
     public string Endpoint { get; set; } = string.Empty;
     public string Description { get; set; } = string.Empty;
+    /// <summary>
+    /// Legacy health check URL. Use HealthCheck for full configuration details.
+    /// </summary>
     public string? HealthCheckUrl { get; set; }
+    /// <summary>
+    /// Full health check configuration including type (HttpGet, TcpConnect).
+    /// </summary>
+    public HealthCheckConfig? HealthCheck { get; set; }
 }
 
 public class PluginInfo

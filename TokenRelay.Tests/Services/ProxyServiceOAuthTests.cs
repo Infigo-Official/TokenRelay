@@ -20,7 +20,7 @@ public class ProxyServiceOAuthTests
         // Arrange
         var mockOAuthService = new Mock<IOAuthService>();
         var mockConfigService = new Mock<IConfigurationService>();
-        var mockHttpClientFactory = new Mock<IHttpClientFactory>();
+        var mockHttpClientService = new Mock<IHttpClientService>();
         var mockLogger = new Mock<ILogger<ProxyService>>();
 
         var oauthToken = new OAuthToken
@@ -46,7 +46,7 @@ public class ProxyServiceOAuthTests
 
         // Act - Verify service can be constructed with IOAuthService
         var proxyService = new ProxyService(
-            mockHttpClientFactory.Object,
+            mockHttpClientService.Object,
             mockConfigService.Object,
             mockLogger.Object,
             mockOAuthService.Object,
@@ -138,10 +138,10 @@ public class ProxyServiceOAuthTests
     public async Task OAuthService_GetCacheStatistics_ReturnsInitialState()
     {
         // Arrange
-        var mockHttpClientFactory = new Mock<IHttpClientFactory>();
+        var mockHttpClientService = new Mock<IHttpClientService>();
         var mockLogger = new Mock<ILogger<OAuthService>>();
 
-        var service = new OAuthService(mockHttpClientFactory.Object, mockLogger.Object);
+        var service = new OAuthService(mockHttpClientService.Object, mockLogger.Object);
 
         // Act
         var stats = service.GetCacheStatistics();
@@ -161,10 +161,10 @@ public class ProxyServiceOAuthTests
     public void OAuthService_ClearAllTokens_DoesNotThrow()
     {
         // Arrange
-        var mockHttpClientFactory = new Mock<IHttpClientFactory>();
+        var mockHttpClientService = new Mock<IHttpClientService>();
         var mockLogger = new Mock<ILogger<OAuthService>>();
 
-        var service = new OAuthService(mockHttpClientFactory.Object, mockLogger.Object);
+        var service = new OAuthService(mockHttpClientService.Object, mockLogger.Object);
 
         // Act & Assert - Should not throw
         service.ClearAllTokens();

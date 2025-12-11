@@ -64,12 +64,13 @@ public class SystemController : ControllerBase
                 Mode = new ModeInfo
                 {
                     Current = proxyConfig.Mode,
-                    Chain = proxyConfig.Mode.Equals("chain", StringComparison.OrdinalIgnoreCase) 
+                    Chain = proxyConfig.Mode.Equals("chain", StringComparison.OrdinalIgnoreCase)
                         ? new ChainInfo
                         {
                             Endpoint = proxyConfig.Chain.TargetProxy.Endpoint,
                             Description = proxyConfig.Chain.TargetProxy.Description,
-                            HealthCheckUrl = proxyConfig.Chain.TargetProxy.HealthCheckUrl
+                            HealthCheckUrl = proxyConfig.Chain.TargetProxy.HealthCheckUrl,
+                            HealthCheck = proxyConfig.Chain.TargetProxy.EffectiveHealthCheck
                         }
                         : null
                 }
@@ -581,17 +582,18 @@ public class SystemController : ControllerBase
             {
                 targetInfo.Endpoint = kvp.Value.Endpoint;
                 targetInfo.HealthCheckUrl = kvp.Value.HealthCheckUrl;
-                
+                targetInfo.HealthCheck = kvp.Value.EffectiveHealthCheck;
+
                 // Add headers if verbosity is set to headers
                 if (proxyConfig.StatusVerbosity == "headers")
                 {
                     targetInfo.Headers = kvp.Value.Headers;
                 }
             }
-            
+
             targetInfos.Add(targetInfo);
         }
-        
+
         // Then, add or update with runtime overrides
         foreach (var kvp in overrides)
         {
@@ -603,12 +605,13 @@ public class SystemController : ControllerBase
                 existingTarget.Enabled = kvp.Value.Enabled;
                 existingTarget.IsOverridden = true;
                 existingTarget.IgnoreCertificateValidation = kvp.Value.IgnoreCertificateValidation;
-                
+
                 if (proxyConfig.StatusVerbosity != "none")
                 {
                     existingTarget.Endpoint = kvp.Value.Endpoint;
                     existingTarget.HealthCheckUrl = kvp.Value.HealthCheckUrl;
-                    
+                    existingTarget.HealthCheck = kvp.Value.EffectiveHealthCheck;
+
                     if (proxyConfig.StatusVerbosity == "headers")
                     {
                         existingTarget.Headers = kvp.Value.Headers;
@@ -626,18 +629,19 @@ public class SystemController : ControllerBase
                     IsOverridden = true,
                     IgnoreCertificateValidation = kvp.Value.IgnoreCertificateValidation
                 };
-                
+
                 if (proxyConfig.StatusVerbosity != "none")
                 {
                     targetInfo.Endpoint = kvp.Value.Endpoint;
                     targetInfo.HealthCheckUrl = kvp.Value.HealthCheckUrl;
-                    
+                    targetInfo.HealthCheck = kvp.Value.EffectiveHealthCheck;
+
                     if (proxyConfig.StatusVerbosity == "headers")
                     {
                         targetInfo.Headers = kvp.Value.Headers;
                     }
                 }
-                
+
                 targetInfos.Add(targetInfo);
             }
         }

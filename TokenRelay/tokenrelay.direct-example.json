@@ -15,8 +15,12 @@
     "targets": {
       "httpbin": {
         "endpoint": "https://httpbin.org",
-        "healthCheckUrl": "https://httpbin.org/status/200",
-        "description": "HTTPBin service for testing HTTP requests and responses",
+        "healthCheck": {
+          "url": "https://httpbin.org/status/200",
+          "enabled": true,
+          "type": "HttpGet"
+        },
+        "description": "HTTPBin service - using new healthCheck object with HttpGet type",
         "headers": {
           "User-Agent": "TokenRelay/1.0.0",
           "Accept": "application/json"
@@ -25,15 +29,19 @@
       "jsonplaceholder": {
         "endpoint": "https://jsonplaceholder.typicode.com",
         "healthCheckUrl": "https://jsonplaceholder.typicode.com/posts/1",
-        "description": "JSONPlaceholder API for testing",
+        "description": "JSONPlaceholder API - using legacy healthCheckUrl (backward compatible)",
         "headers": {
           "Accept": "application/json"
         }
       },
       "internal-api": {
         "endpoint": "https://internal-api.company.com",
-        "healthCheckUrl": "https://internal-api.company.com/health",
-        "description": "Internal company API with static auth",
+        "healthCheck": {
+          "url": "https://internal-api.company.com",
+          "enabled": true,
+          "type": "TcpConnect"
+        },
+        "description": "Internal company API - using TcpConnect for basic reachability check",
         "authType": "static",
         "headers": {
           "Authorization": "Bearer api-key-here",
