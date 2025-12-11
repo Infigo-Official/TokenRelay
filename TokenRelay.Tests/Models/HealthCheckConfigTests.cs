@@ -38,6 +38,67 @@ public class HealthCheckConfigTests
         Assert.Equal(string.Empty, config.Url);
     }
 
+    [Fact]
+    public void HealthCheckConfig_DefaultsBody_ToNull()
+    {
+        // Arrange & Act
+        var config = new HealthCheckConfig();
+
+        // Assert
+        Assert.Null(config.Body);
+    }
+
+    [Fact]
+    public void HealthCheckConfig_DefaultsExpectedStatusCodes_ToNull()
+    {
+        // Arrange & Act
+        var config = new HealthCheckConfig();
+
+        // Assert
+        Assert.Null(config.ExpectedStatusCodes);
+    }
+
+    [Fact]
+    public void HealthCheckConfig_EffectiveExpectedStatusCodes_DefaultsTo200()
+    {
+        // Arrange & Act
+        var config = new HealthCheckConfig();
+
+        // Assert
+        Assert.Single(config.EffectiveExpectedStatusCodes);
+        Assert.Equal(200, config.EffectiveExpectedStatusCodes[0]);
+    }
+
+    [Fact]
+    public void HealthCheckConfig_EffectiveExpectedStatusCodes_ReturnsConfiguredCodes()
+    {
+        // Arrange
+        var config = new HealthCheckConfig
+        {
+            ExpectedStatusCodes = [200, 201, 202]
+        };
+
+        // Assert
+        Assert.Equal(3, config.EffectiveExpectedStatusCodes.Count);
+        Assert.Contains(200, config.EffectiveExpectedStatusCodes);
+        Assert.Contains(201, config.EffectiveExpectedStatusCodes);
+        Assert.Contains(202, config.EffectiveExpectedStatusCodes);
+    }
+
+    [Fact]
+    public void HealthCheckConfig_EffectiveExpectedStatusCodes_DefaultsWhenEmptyList()
+    {
+        // Arrange
+        var config = new HealthCheckConfig
+        {
+            ExpectedStatusCodes = []
+        };
+
+        // Assert - Empty list should default to [200]
+        Assert.Single(config.EffectiveExpectedStatusCodes);
+        Assert.Equal(200, config.EffectiveExpectedStatusCodes[0]);
+    }
+
     #endregion
 
     #region HealthCheckType Enum
@@ -50,10 +111,17 @@ public class HealthCheckConfigTests
     }
 
     [Fact]
+    public void HealthCheckType_HasHttpPostValue()
+    {
+        // Assert
+        Assert.Equal(1, (int)HealthCheckType.HttpPost);
+    }
+
+    [Fact]
     public void HealthCheckType_HasTcpConnectValue()
     {
         // Assert
-        Assert.Equal(1, (int)HealthCheckType.TcpConnect);
+        Assert.Equal(2, (int)HealthCheckType.TcpConnect);
     }
 
     #endregion
@@ -227,6 +295,46 @@ public class HealthCheckConfigTests
     }
 
     [Fact]
+    public void HealthCheckConfig_SerializesHttpPostTypeAsString()
+    {
+        // Arrange
+        var config = new HealthCheckConfig
+        {
+            Url = "https://api.example.com/health",
+            Enabled = true,
+            Type = HealthCheckType.HttpPost,
+            Body = "{\"check\": \"health\"}"
+        };
+
+        // Act
+        var json = JsonSerializer.Serialize(config);
+
+        // Assert
+        Assert.Contains("\"Type\":\"HttpPost\"", json);
+        Assert.Contains("\"Body\":", json);
+        Assert.Contains("check", json);
+    }
+
+    [Fact]
+    public void HealthCheckConfig_SerializesExpectedStatusCodes()
+    {
+        // Arrange
+        var config = new HealthCheckConfig
+        {
+            Url = "https://api.example.com/health",
+            Enabled = true,
+            Type = HealthCheckType.HttpGet,
+            ExpectedStatusCodes = [200, 201, 202]
+        };
+
+        // Act
+        var json = JsonSerializer.Serialize(config);
+
+        // Assert
+        Assert.Contains("\"ExpectedStatusCodes\":[200,201,202]", json);
+    }
+
+    [Fact]
     public void HealthCheckConfig_DeserializesFromJson_HttpGet()
     {
         // Arrange
@@ -268,6 +376,83 @@ public class HealthCheckConfigTests
         Assert.Equal("https://api.example.com", config.Url);
         Assert.True(config.Enabled);
         Assert.Equal(HealthCheckType.TcpConnect, config.Type);
+    }
+
+    [Fact]
+    public void HealthCheckConfig_DeserializesFromJson_HttpPost()
+    {
+        // Arrange
+        var json = """
+        {
+            "Url": "https://api.example.com/health",
+            "Enabled": true,
+            "Type": "HttpPost",
+            "Body": "{\"check\": \"health\"}"
+        }
+        """;
+
+        // Act
+        var config = JsonSerializer.Deserialize<HealthCheckConfig>(json);
+
+        // Assert
+        Assert.NotNull(config);
+        Assert.Equal("https://api.example.com/health", config.Url);
+        Assert.True(config.Enabled);
+        Assert.Equal(HealthCheckType.HttpPost, config.Type);
+        Assert.Equal("{\"check\": \"health\"}", config.Body);
+    }
+
+    [Fact]
+    public void HealthCheckConfig_DeserializesFromJson_WithExpectedStatusCodes()
+    {
+        // Arrange
+        var json = """
+        {
+            "Url": "https://api.example.com/health",
+            "Enabled": true,
+            "Type": "HttpGet",
+            "ExpectedStatusCodes": [200, 201, 202, 204]
+        }
+        """;
+
+        // Act
+        var config = JsonSerializer.Deserialize<HealthCheckConfig>(json);
+
+        // Assert
+        Assert.NotNull(config);
+        Assert.NotNull(config.ExpectedStatusCodes);
+        Assert.Equal(4, config.ExpectedStatusCodes.Count);
+        Assert.Contains(200, config.ExpectedStatusCodes);
+        Assert.Contains(201, config.ExpectedStatusCodes);
+        Assert.Contains(202, config.ExpectedStatusCodes);
+        Assert.Contains(204, config.ExpectedStatusCodes);
+    }
+
+    [Fact]
+    public void HealthCheckConfig_DeserializesFromJson_HttpPostWithAllProperties()
+    {
+        // Arrange
+        var json = """
+        {
+            "Url": "https://api.example.com/health",
+            "Enabled": true,
+            "Type": "HttpPost",
+            "Body": "{\"status\": \"check\"}",
+            "ExpectedStatusCodes": [200, 201]
+        }
+        """;
+
+        // Act
+        var config = JsonSerializer.Deserialize<HealthCheckConfig>(json);
+
+        // Assert
+        Assert.NotNull(config);
+        Assert.Equal("https://api.example.com/health", config.Url);
+        Assert.True(config.Enabled);
+        Assert.Equal(HealthCheckType.HttpPost, config.Type);
+        Assert.Equal("{\"status\": \"check\"}", config.Body);
+        Assert.NotNull(config.ExpectedStatusCodes);
+        Assert.Equal(2, config.ExpectedStatusCodes.Count);
     }
 
     [Fact]

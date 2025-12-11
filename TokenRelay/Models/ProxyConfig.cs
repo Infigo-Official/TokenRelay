@@ -122,6 +122,25 @@ public class HealthCheckConfig
     /// </summary>
     [JsonConverter(typeof(JsonStringEnumConverter))]
     public HealthCheckType Type { get; set; } = HealthCheckType.HttpGet;
+
+    /// <summary>
+    /// Optional request body for HttpPost health checks.
+    /// </summary>
+    public string? Body { get; set; }
+
+    /// <summary>
+    /// Expected HTTP status codes that indicate a healthy response.
+    /// Default is [200]. Can specify multiple codes like [200, 201, 202].
+    /// Note: 401 is always considered healthy (service is responding).
+    /// </summary>
+    public List<int>? ExpectedStatusCodes { get; set; }
+
+    /// <summary>
+    /// Gets the effective expected status codes, defaulting to [200] if not specified.
+    /// </summary>
+    [JsonIgnore]
+    public IReadOnlyList<int> EffectiveExpectedStatusCodes =>
+        ExpectedStatusCodes is { Count: > 0 } ? ExpectedStatusCodes : [200];
 }
 
 /// <summary>
@@ -132,9 +151,15 @@ public enum HealthCheckType
 {
     /// <summary>
     /// Performs an HTTP GET request and validates the response status code.
-    /// Success: 2xx or 401 status codes.
+    /// Success: Expected status codes (default 200) or 401.
     /// </summary>
     HttpGet,
+
+    /// <summary>
+    /// Performs an HTTP POST request with optional body and validates the response status code.
+    /// Success: Expected status codes (default 200) or 401.
+    /// </summary>
+    HttpPost,
 
     /// <summary>
     /// Opens a TCP socket connection to verify the host:port is reachable.

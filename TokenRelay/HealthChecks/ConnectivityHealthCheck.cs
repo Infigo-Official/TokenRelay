@@ -60,8 +60,9 @@ public class ConnectivityHealthCheck : IHealthCheck
                     var isHealthy = healthConfig.Type switch
                     {
                         HealthCheckType.TcpConnect => await CheckTcpConnectAsync(healthConfig.Url, cancellationToken),
-                        HealthCheckType.HttpGet => await CheckHttpGetAsync(httpClient, healthConfig.Url, cancellationToken),
-                        _ => await CheckHttpGetAsync(httpClient, healthConfig.Url, cancellationToken)
+                        HealthCheckType.HttpPost => await CheckHttpPostAsync(httpClient, healthConfig, cancellationToken),
+                        HealthCheckType.HttpGet => await CheckHttpGetAsync(httpClient, healthConfig, cancellationToken),
+                        _ => await CheckHttpGetAsync(httpClient, healthConfig, cancellationToken)
                     };
 
                     if (isHealthy)
@@ -132,13 +133,45 @@ public class ConnectivityHealthCheck : IHealthCheck
     /// <summary>
     /// Performs an HTTP GET request to check if the endpoint is healthy.
     /// </summary>
-    private async Task<bool> CheckHttpGetAsync(HttpClient httpClient, string url, CancellationToken cancellationToken)
+    private async Task<bool> CheckHttpGetAsync(HttpClient httpClient, HealthCheckConfig healthConfig, CancellationToken cancellationToken)
     {
-        var testUrl = new Uri(url).ToString();
+        var testUrl = new Uri(healthConfig.Url).ToString();
         using var response = await httpClient.GetAsync(testUrl, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
 
-        // Consider 2xx or 401 as healthy since the service is responding
-        return response.IsSuccessStatusCode || response.StatusCode == System.Net.HttpStatusCode.Unauthorized;
+        return IsHealthyStatusCode(response, healthConfig);
+    }
+
+    /// <summary>
+    /// Performs an HTTP POST request with optional body to check if the endpoint is healthy.
+    /// </summary>
+    private async Task<bool> CheckHttpPostAsync(HttpClient httpClient, HealthCheckConfig healthConfig, CancellationToken cancellationToken)
+    {
+        var testUrl = new Uri(healthConfig.Url).ToString();
+
+        HttpContent? content = null;
+        if (!string.IsNullOrEmpty(healthConfig.Body))
+        {
+            content = new StringContent(healthConfig.Body, System.Text.Encoding.UTF8, "application/json");
+        }
+
+        using var response = await httpClient.PostAsync(testUrl, content, cancellationToken);
+
+        return IsHealthyStatusCode(response, healthConfig);
+    }
+
+    /// <summary>
+    /// Checks if the response status code indicates a healthy service.
+    /// </summary>
+    private static bool IsHealthyStatusCode(HttpResponseMessage response, HealthCheckConfig healthConfig)
+    {
+        var statusCode = (int)response.StatusCode;
+
+        // 401 is always considered healthy (service is responding, just requires auth)
+        if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+            return true;
+
+        // Check against expected status codes
+        return healthConfig.EffectiveExpectedStatusCodes.Contains(statusCode);
     }
 
     /// <summary>
