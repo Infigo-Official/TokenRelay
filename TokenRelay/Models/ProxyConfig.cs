@@ -129,6 +129,19 @@ public class HealthCheckConfig
     public string? Body { get; set; }
 
     /// <summary>
+    /// Content-Type header for HttpPost health checks.
+    /// Default is "application/json".
+    /// </summary>
+    public string? ContentType { get; set; }
+
+    /// <summary>
+    /// Gets the effective content type, defaulting to "application/json" if not specified.
+    /// </summary>
+    [JsonIgnore]
+    public string EffectiveContentType =>
+        string.IsNullOrWhiteSpace(ContentType) ? "application/json" : ContentType;
+
+    /// <summary>
     /// Expected HTTP status codes that indicate a healthy response.
     /// Default is [200]. Can specify multiple codes like [200, 201, 202].
     /// Note: 401 is always considered healthy (service is responding).
@@ -153,19 +166,19 @@ public enum HealthCheckType
     /// Performs an HTTP GET request and validates the response status code.
     /// Success: Expected status codes (default 200) or 401.
     /// </summary>
-    HttpGet,
-
-    /// <summary>
-    /// Performs an HTTP POST request with optional body and validates the response status code.
-    /// Success: Expected status codes (default 200) or 401.
-    /// </summary>
-    HttpPost,
+    HttpGet = 0,
 
     /// <summary>
     /// Opens a TCP socket connection to verify the host:port is reachable.
     /// No HTTP request is made - just verifies network connectivity.
     /// </summary>
-    TcpConnect
+    TcpConnect = 1,
+
+    /// <summary>
+    /// Performs an HTTP POST request with optional body and validates the response status code.
+    /// Success: Expected status codes (default 200) or 401.
+    /// </summary>
+    HttpPost = 2
 }
 
 public class PluginConfig

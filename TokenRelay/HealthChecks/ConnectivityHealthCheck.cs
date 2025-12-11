@@ -151,7 +151,7 @@ public class ConnectivityHealthCheck : IHealthCheck
         HttpContent? content = null;
         if (!string.IsNullOrEmpty(healthConfig.Body))
         {
-            content = new StringContent(healthConfig.Body, System.Text.Encoding.UTF8, "application/json");
+            content = new StringContent(healthConfig.Body, System.Text.Encoding.UTF8, healthConfig.EffectiveContentType);
         }
 
         using var response = await httpClient.PostAsync(testUrl, content, cancellationToken);

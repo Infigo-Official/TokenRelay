@@ -99,6 +99,52 @@ public class HealthCheckConfigTests
         Assert.Equal(200, config.EffectiveExpectedStatusCodes[0]);
     }
 
+    [Fact]
+    public void HealthCheckConfig_DefaultsContentType_ToNull()
+    {
+        // Arrange & Act
+        var config = new HealthCheckConfig();
+
+        // Assert
+        Assert.Null(config.ContentType);
+    }
+
+    [Fact]
+    public void HealthCheckConfig_EffectiveContentType_DefaultsToApplicationJson()
+    {
+        // Arrange & Act
+        var config = new HealthCheckConfig();
+
+        // Assert
+        Assert.Equal("application/json", config.EffectiveContentType);
+    }
+
+    [Fact]
+    public void HealthCheckConfig_EffectiveContentType_ReturnsConfiguredValue()
+    {
+        // Arrange
+        var config = new HealthCheckConfig
+        {
+            ContentType = "application/xml"
+        };
+
+        // Assert
+        Assert.Equal("application/xml", config.EffectiveContentType);
+    }
+
+    [Fact]
+    public void HealthCheckConfig_EffectiveContentType_DefaultsWhenWhitespace()
+    {
+        // Arrange
+        var config = new HealthCheckConfig
+        {
+            ContentType = "   "
+        };
+
+        // Assert
+        Assert.Equal("application/json", config.EffectiveContentType);
+    }
+
     #endregion
 
     #region HealthCheckType Enum
@@ -111,17 +157,17 @@ public class HealthCheckConfigTests
     }
 
     [Fact]
-    public void HealthCheckType_HasHttpPostValue()
+    public void HealthCheckType_HasTcpConnectValue()
     {
-        // Assert
-        Assert.Equal(1, (int)HealthCheckType.HttpPost);
+        // Assert - TcpConnect is at index 1 for backward compatibility
+        Assert.Equal(1, (int)HealthCheckType.TcpConnect);
     }
 
     [Fact]
-    public void HealthCheckType_HasTcpConnectValue()
+    public void HealthCheckType_HasHttpPostValue()
     {
-        // Assert
-        Assert.Equal(2, (int)HealthCheckType.TcpConnect);
+        // Assert - HttpPost is at index 2 (added after TcpConnect)
+        Assert.Equal(2, (int)HealthCheckType.HttpPost);
     }
 
     #endregion
