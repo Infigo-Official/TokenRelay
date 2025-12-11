@@ -1,0 +1,91 @@
+{
+  "proxy": {
+    "auth": {
+      "tokens": ["local-test-token"],
+      "encryptionKey": "local-test-32-character-key-ok"
+    },
+    "mode": "direct",
+    "timeoutSeconds": 300,
+    "logBufferMinutes": 20,
+    "permissions": {
+      "allowTargetConfigOverride": false,
+      "allowLogRetrieval": true,
+      "allowLogLevelAdjustment": true
+    },
+    "targets": {
+      "httpbin-get": {
+        "endpoint": "https://httpbin.org",
+        "healthCheck": {
+          "url": "https://httpbin.org/status/200",
+          "enabled": true,
+          "type": "HttpGet"
+        },
+        "description": "HTTPBin service - using HttpGet health check",
+        "headers": {
+          "User-Agent": "TokenRelay/1.13.1",
+          "Accept": "application/json"
+        }
+      },
+      "httpbin-post": {
+        "endpoint": "https://httpbin.org",
+        "healthCheck": {
+          "url": "https://eojy4tyhlozte5d.m.pipedream.net",
+          "enabled": true,
+          "type": "HttpPost",
+          "body": "{\"check\": \"health\"}",
+          "expectedStatusCodes": [200]
+        },
+        "description": "HTTPBin service - using HttpPost health check with body"
+      },
+      "httpbin-multi-status": {
+        "endpoint": "https://httpbin.org",
+        "healthCheck": {
+          "url": "https://httpbin.org/status/201",
+          "enabled": true,
+          "type": "HttpGet",
+          "expectedStatusCodes": [200, 201, 202, 204]
+        },
+        "description": "HTTPBin service - using HttpGet with multiple expected status codes"
+      },
+      "google": {
+        "endpoint": "https://www.google.com",
+        "healthCheck": {
+          "url": "https://www.google.com",
+          "enabled": true,
+          "type": "TcpConnect"
+        },
+        "description": "Google - using TcpConnect health check"
+      },
+      "jsonplaceholder": {
+        "endpoint": "https://jsonplaceholder.typicode.com",
+        "healthCheckUrl": "https://jsonplaceholder.typicode.com/posts/1",
+        "description": "JSONPlaceholder API - using legacy healthCheckUrl format"
+      },
+      "disabled-target": {
+        "endpoint": "https://example.com",
+        "healthCheck": {
+          "url": "https://example.com",
+          "enabled": false,
+          "type": "HttpGet"
+        },
+        "description": "Example target with health check disabled"
+      }
+    }
+  },
+  "plugins": {
+    "fileStorage": {
+      "enabled": true,
+      "settings": {
+        "destinations.documents": "/app/uploads/documents",
+        "destinations.images": "/app/uploads/images",
+        "destinations.temp": "/app/uploads/temp"
+      }
+    }
+  },
+  "logging": {
+    "level": "Debug",
+    "destinations": [
+      "console"
+    ]
+  }
+}
