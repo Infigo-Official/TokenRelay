@@ -1,7 +1,7 @@
 services:
   tokenrelay:
     build:
-      context: .
+      context: ../..
       dockerfile: docker/Dockerfile
       args:
         VERSION: 1.13.1
@@ -14,9 +14,9 @@ services:
       - ConfigPath=/app/tokenrelay.json
       - TOKENRELAY_CONFIG_MODE=file
     volumes:
-      - ./docker/config/tokenrelay-local.json:/app/tokenrelay.json:ro
-      - ./docker/uploads:/app/uploads
-      - ./docker/logs:/app/logs
+      - ./tokenrelay-local.json:/app/tokenrelay.json:ro
+      - ./uploads:/app/uploads
+      - ./logs:/app/logs
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:80/health"]
