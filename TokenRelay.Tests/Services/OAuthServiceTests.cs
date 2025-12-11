@@ -18,13 +18,13 @@ namespace TokenRelay.Tests.Services;
 public class OAuthServiceTests
 {
     private readonly Mock<ILogger<OAuthService>> _mockLogger;
-    private readonly Mock<IHttpClientFactory> _mockHttpClientFactory;
+    private readonly Mock<IHttpClientService> _mockHttpClientService;
     private readonly Mock<HttpMessageHandler> _mockHttpMessageHandler;
 
     public OAuthServiceTests()
     {
         _mockLogger = new Mock<ILogger<OAuthService>>();
-        _mockHttpClientFactory = new Mock<IHttpClientFactory>();
+        _mockHttpClientService = new Mock<IHttpClientService>();
         _mockHttpMessageHandler = new Mock<HttpMessageHandler>();
     }
 
@@ -482,10 +482,10 @@ public class OAuthServiceTests
     private OAuthService CreateService()
     {
         var httpClient = new HttpClient(_mockHttpMessageHandler.Object);
-        _mockHttpClientFactory.Setup(f => f.CreateClient(It.IsAny<string>()))
+        _mockHttpClientService.Setup(f => f.GetClientForTarget(It.IsAny<TargetConfig>(), It.IsAny<int?>()))
             .Returns(httpClient);
 
-        return new OAuthService(_mockHttpClientFactory.Object, _mockLogger.Object);
+        return new OAuthService(_mockHttpClientService.Object, _mockLogger.Object);
     }
 
     private void SetupHttpMessageHandler(HttpStatusCode statusCode, string responseContent)

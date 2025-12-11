@@ -15,7 +15,11 @@
     "chain": {
       "targetProxy": {
         "endpoint": "https://downstream-tokenrelay.example.com",
-        "healthCheckUrl": "/health",
+        "healthCheck": {
+          "url": "/health",
+          "enabled": true,
+          "type": "HttpGet"
+        },
         "description": "Downstream TokenRelay proxy instance",
         "headers": {
           "Authorization": "Bearer your-downstream-token-here"
