@@ -372,6 +372,97 @@ public class ConnectivityHealthCheckTests
         Assert.Equal(0, result.Data["unhealthy_targets"]);
     }
 
+    [Fact]
+    public async Task CheckHealthAsync_IncludesTargetDetailsWithReasons()
+    {
+        // Arrange
+        var config = CreateProxyConfig(new Dictionary<string, TargetConfig>
+        {
+            ["healthy-api"] = new TargetConfig
+            {
+                Endpoint = "https://healthy.example.com",
+                HealthCheck = new HealthCheckConfig
+                {
+                    Url = "https://healthy.example.com/health",
+                    Enabled = true,
+                    Type = HealthCheckType.HttpGet
+                }
+            },
+            ["disabled-api"] = new TargetConfig
+            {
+                Endpoint = "https://disabled.example.com",
+                HealthCheck = new HealthCheckConfig
+                {
+                    Url = "https://disabled.example.com/health",
+                    Enabled = false,
+                    Type = HealthCheckType.HttpGet
+                }
+            },
+            ["no-healthcheck-api"] = new TargetConfig
+            {
+                Endpoint = "https://no-healthcheck.example.com",
+                HealthCheck = null
+            }
+        });
+
+        SetupMocks(config, HttpStatusCode.OK);
+        var healthCheck = CreateHealthCheck();
+
+        // Act
+        var result = await healthCheck.CheckHealthAsync(new HealthCheckContext());
+
+        // Assert
+        Assert.True(result.Data.ContainsKey("target_details"));
+        var targetDetails = result.Data["target_details"] as System.Collections.IList;
+        Assert.NotNull(targetDetails);
+        Assert.Equal(3, targetDetails.Count);
+
+        // Verify target_details contains expected properties
+        var detailsJson = System.Text.Json.JsonSerializer.Serialize(targetDetails);
+        Assert.Contains("healthy-api", detailsJson);
+        Assert.Contains("disabled-api", detailsJson);
+        Assert.Contains("no-healthcheck-api", detailsJson);
+        Assert.Contains("\"status\":\"healthy\"", detailsJson);
+        Assert.Contains("\"status\":\"skipped\"", detailsJson);
+        Assert.Contains("HTTP 200", detailsJson);
+        Assert.Contains("Health check disabled", detailsJson);
+        Assert.Contains("No health check configured", detailsJson);
+    }
+
+    [Fact]
+    public async Task CheckHealthAsync_IncludesUnhealthyReasonWithStatusCode()
+    {
+        // Arrange
+        var config = CreateProxyConfig(new Dictionary<string, TargetConfig>
+        {
+            ["failing-api"] = new TargetConfig
+            {
+                Endpoint = "https://failing.example.com",
+                HealthCheck = new HealthCheckConfig
+                {
+                    Url = "https://failing.example.com/health",
+                    Enabled = true,
+                    Type = HealthCheckType.HttpGet
+                }
+            }
+        });
+
+        SetupMocks(config, HttpStatusCode.ServiceUnavailable);
+        var healthCheck = CreateHealthCheck();
+
+        // Act
+        var result = await healthCheck.CheckHealthAsync(new HealthCheckContext());
+
+        // Assert
+        Assert.Equal(HealthStatus.Unhealthy, result.Status);
+        var targetDetails = result.Data["target_details"] as System.Collections.IList;
+        Assert.NotNull(targetDetails);
+
+        var detailsJson = System.Text.Json.JsonSerializer.Serialize(targetDetails);
+        Assert.Contains("\"status\":\"unhealthy\"", detailsJson);
+        Assert.Contains("HTTP 503", detailsJson);
+    }
+
     #endregion
 
     #region Connection Error Tests

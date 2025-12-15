@@ -242,6 +242,346 @@ public class ConnectivityHealthCheckIntegrationTests : IDisposable
 
     #endregion
 
+    #region HTTP POST Tests
+
+    [Fact]
+    public async Task HttpPost_ReturnsHealthy_WhenEndpointAcceptsPost()
+    {
+        // Arrange - postman-echo.com/post accepts POST requests and returns 200
+        var config = CreateProxyConfig(new Dictionary<string, TargetConfig>
+        {
+            ["httpbin"] = new TargetConfig
+            {
+                Endpoint = "https://postman-echo.com",
+                HealthCheck = new HealthCheckConfig
+                {
+                    Url = "https://postman-echo.com/post",
+                    Enabled = true,
+                    Type = HealthCheckType.HttpPost
+                }
+            }
+        });
+
+        _mockConfigService.Setup(c => c.GetProxyConfig()).Returns(config);
+        var healthCheck = CreateHealthCheck();
+
+        // Act
+        var result = await healthCheck.CheckHealthAsync(new HealthCheckContext());
+
+        // Assert
+        Assert.Equal(HealthStatus.Healthy, result.Status);
+        Assert.Equal(1, result.Data["healthy_targets"]);
+    }
+
+    [Fact]
+    public async Task HttpPost_ReturnsHealthy_WithJsonBody()
+    {
+        // Arrange - POST with JSON body
+        var config = CreateProxyConfig(new Dictionary<string, TargetConfig>
+        {
+            ["httpbin"] = new TargetConfig
+            {
+                Endpoint = "https://postman-echo.com",
+                HealthCheck = new HealthCheckConfig
+                {
+                    Url = "https://postman-echo.com/post",
+                    Enabled = true,
+                    Type = HealthCheckType.HttpPost,
+                    Body = "{\"test\": \"value\"}",
+                    ContentType = "application/json"
+                }
+            }
+        });
+
+        _mockConfigService.Setup(c => c.GetProxyConfig()).Returns(config);
+        var healthCheck = CreateHealthCheck();
+
+        // Act
+        var result = await healthCheck.CheckHealthAsync(new HealthCheckContext());
+
+        // Assert
+        Assert.Equal(HealthStatus.Healthy, result.Status);
+        Assert.Equal(1, result.Data["healthy_targets"]);
+    }
+
+    [Fact]
+    public async Task HttpPost_ReturnsHealthy_WithXmlContentType()
+    {
+        // Arrange - POST with XML content type
+        var config = CreateProxyConfig(new Dictionary<string, TargetConfig>
+        {
+            ["httpbin"] = new TargetConfig
+            {
+                Endpoint = "https://postman-echo.com",
+                HealthCheck = new HealthCheckConfig
+                {
+                    Url = "https://postman-echo.com/post",
+                    Enabled = true,
+                    Type = HealthCheckType.HttpPost,
+                    Body = "<root><test>value</test></root>",
+                    ContentType = "application/xml"
+                }
+            }
+        });
+
+        _mockConfigService.Setup(c => c.GetProxyConfig()).Returns(config);
+        var healthCheck = CreateHealthCheck();
+
+        // Act
+        var result = await healthCheck.CheckHealthAsync(new HealthCheckContext());
+
+        // Assert
+        Assert.Equal(HealthStatus.Healthy, result.Status);
+        Assert.Equal(1, result.Data["healthy_targets"]);
+    }
+
+    [Fact]
+    public async Task HttpPost_ReturnsHealthy_WithFormUrlEncodedContentType()
+    {
+        // Arrange - POST with form-urlencoded content type
+        var config = CreateProxyConfig(new Dictionary<string, TargetConfig>
+        {
+            ["httpbin"] = new TargetConfig
+            {
+                Endpoint = "https://postman-echo.com",
+                HealthCheck = new HealthCheckConfig
+                {
+                    Url = "https://postman-echo.com/post",
+                    Enabled = true,
+                    Type = HealthCheckType.HttpPost,
+                    Body = "key1=value1&key2=value2",
+                    ContentType = "application/x-www-form-urlencoded"
+                }
+            }
+        });
+
+        _mockConfigService.Setup(c => c.GetProxyConfig()).Returns(config);
+        var healthCheck = CreateHealthCheck();
+
+        // Act
+        var result = await healthCheck.CheckHealthAsync(new HealthCheckContext());
+
+        // Assert
+        Assert.Equal(HealthStatus.Healthy, result.Status);
+        Assert.Equal(1, result.Data["healthy_targets"]);
+    }
+
+    [Fact]
+    public async Task HttpPost_ReturnsUnhealthy_WhenEndpointOnlyAcceptsGet()
+    {
+        // Arrange - postman-echo.com/get returns 405 Method Not Allowed for POST
+        var config = CreateProxyConfig(new Dictionary<string, TargetConfig>
+        {
+            ["httpbin"] = new TargetConfig
+            {
+                Endpoint = "https://postman-echo.com",
+                HealthCheck = new HealthCheckConfig
+                {
+                    Url = "https://postman-echo.com/get",
+                    Enabled = true,
+                    Type = HealthCheckType.HttpPost,
+                    ExpectedStatusCodes = new List<int> { 200 }
+                }
+            }
+        });
+
+        _mockConfigService.Setup(c => c.GetProxyConfig()).Returns(config);
+        var healthCheck = CreateHealthCheck();
+
+        // Act
+        var result = await healthCheck.CheckHealthAsync(new HealthCheckContext());
+
+        // Assert
+        Assert.Equal(HealthStatus.Unhealthy, result.Status);
+        Assert.Equal(1, result.Data["unhealthy_targets"]);
+    }
+
+    [Fact]
+    public async Task HttpPost_ReturnsHealthy_WithMatchingExpectedStatusCode()
+    {
+        // Arrange - postman-echo.com/post returns 200, and we expect 200
+        var config = CreateProxyConfig(new Dictionary<string, TargetConfig>
+        {
+            ["postman-echo"] = new TargetConfig
+            {
+                Endpoint = "https://postman-echo.com",
+                HealthCheck = new HealthCheckConfig
+                {
+                    Url = "https://postman-echo.com/post",
+                    Enabled = true,
+                    Type = HealthCheckType.HttpPost,
+                    ExpectedStatusCodes = new List<int> { 200 }
+                }
+            }
+        });
+
+        _mockConfigService.Setup(c => c.GetProxyConfig()).Returns(config);
+        var healthCheck = CreateHealthCheck();
+
+        // Act
+        var result = await healthCheck.CheckHealthAsync(new HealthCheckContext());
+
+        // Assert
+        Assert.Equal(HealthStatus.Healthy, result.Status);
+        Assert.Equal(1, result.Data["healthy_targets"]);
+    }
+
+    [Fact]
+    public async Task HttpPost_ReturnsUnhealthy_WithNonMatchingExpectedStatusCode()
+    {
+        // Arrange - postman-echo.com/post returns 200, but we expect 201
+        var config = CreateProxyConfig(new Dictionary<string, TargetConfig>
+        {
+            ["postman-echo"] = new TargetConfig
+            {
+                Endpoint = "https://postman-echo.com",
+                HealthCheck = new HealthCheckConfig
+                {
+                    Url = "https://postman-echo.com/post",
+                    Enabled = true,
+                    Type = HealthCheckType.HttpPost,
+                    ExpectedStatusCodes = new List<int> { 201 }
+                }
+            }
+        });
+
+        _mockConfigService.Setup(c => c.GetProxyConfig()).Returns(config);
+        var healthCheck = CreateHealthCheck();
+
+        // Act
+        var result = await healthCheck.CheckHealthAsync(new HealthCheckContext());
+
+        // Assert
+        Assert.Equal(HealthStatus.Unhealthy, result.Status);
+        Assert.Equal(1, result.Data["unhealthy_targets"]);
+    }
+
+    [Fact]
+    public async Task HttpPost_ReturnsHealthy_WithMultipleExpectedStatusCodes()
+    {
+        // Arrange - postman-echo.com/post returns 200, and 200 is in our expected list
+        var config = CreateProxyConfig(new Dictionary<string, TargetConfig>
+        {
+            ["postman-echo"] = new TargetConfig
+            {
+                Endpoint = "https://postman-echo.com",
+                HealthCheck = new HealthCheckConfig
+                {
+                    Url = "https://postman-echo.com/post",
+                    Enabled = true,
+                    Type = HealthCheckType.HttpPost,
+                    ExpectedStatusCodes = new List<int> { 200, 201, 202 }
+                }
+            }
+        });
+
+        _mockConfigService.Setup(c => c.GetProxyConfig()).Returns(config);
+        var healthCheck = CreateHealthCheck();
+
+        // Act
+        var result = await healthCheck.CheckHealthAsync(new HealthCheckContext());
+
+        // Assert
+        Assert.Equal(HealthStatus.Healthy, result.Status);
+        Assert.Equal(1, result.Data["healthy_targets"]);
+    }
+
+    #endregion
+
+    #region HTTP GET Status Code Tests
+
+    [Fact]
+    public async Task HttpGet_ReturnsHealthy_WithCustomExpectedStatusCode()
+    {
+        // Arrange - postman-echo.com/status/201 returns 201
+        var config = CreateProxyConfig(new Dictionary<string, TargetConfig>
+        {
+            ["postman-echo"] = new TargetConfig
+            {
+                Endpoint = "https://postman-echo.com",
+                HealthCheck = new HealthCheckConfig
+                {
+                    Url = "https://postman-echo.com/status/201",
+                    Enabled = true,
+                    Type = HealthCheckType.HttpGet,
+                    ExpectedStatusCodes = new List<int> { 201 }
+                }
+            }
+        });
+
+        _mockConfigService.Setup(c => c.GetProxyConfig()).Returns(config);
+        var healthCheck = CreateHealthCheck();
+
+        // Act
+        var result = await healthCheck.CheckHealthAsync(new HealthCheckContext());
+
+        // Assert
+        Assert.Equal(HealthStatus.Healthy, result.Status);
+        Assert.Equal(1, result.Data["healthy_targets"]);
+    }
+
+    [Fact]
+    public async Task HttpGet_ReturnsHealthy_WithMultipleExpectedStatusCodes()
+    {
+        // Arrange - Accepting 200, 201, 202 (postman-echo.com/status/202 returns 202)
+        var config = CreateProxyConfig(new Dictionary<string, TargetConfig>
+        {
+            ["postman-echo"] = new TargetConfig
+            {
+                Endpoint = "https://postman-echo.com",
+                HealthCheck = new HealthCheckConfig
+                {
+                    Url = "https://postman-echo.com/status/202",
+                    Enabled = true,
+                    Type = HealthCheckType.HttpGet,
+                    ExpectedStatusCodes = new List<int> { 200, 201, 202 }
+                }
+            }
+        });
+
+        _mockConfigService.Setup(c => c.GetProxyConfig()).Returns(config);
+        var healthCheck = CreateHealthCheck();
+
+        // Act
+        var result = await healthCheck.CheckHealthAsync(new HealthCheckContext());
+
+        // Assert
+        Assert.Equal(HealthStatus.Healthy, result.Status);
+        Assert.Equal(1, result.Data["healthy_targets"]);
+    }
+
+    [Fact]
+    public async Task HttpGet_ReturnsHealthy_When401Received()
+    {
+        // Arrange - 401 is always considered healthy (service is responding, just requires auth)
+        var config = CreateProxyConfig(new Dictionary<string, TargetConfig>
+        {
+            ["postman-echo"] = new TargetConfig
+            {
+                Endpoint = "https://postman-echo.com",
+                HealthCheck = new HealthCheckConfig
+                {
+                    Url = "https://postman-echo.com/status/401",
+                    Enabled = true,
+                    Type = HealthCheckType.HttpGet,
+                    ExpectedStatusCodes = new List<int> { 200 } // Even though 401 is not in expected codes
+                }
+            }
+        });
+
+        _mockConfigService.Setup(c => c.GetProxyConfig()).Returns(config);
+        var healthCheck = CreateHealthCheck();
+
+        // Act
+        var result = await healthCheck.CheckHealthAsync(new HealthCheckContext());
+
+        // Assert
+        Assert.Equal(HealthStatus.Healthy, result.Status);
+        Assert.Equal(1, result.Data["healthy_targets"]);
+    }
+
+    #endregion
+
     #region Disabled Health Check Tests
 
     [Fact]
