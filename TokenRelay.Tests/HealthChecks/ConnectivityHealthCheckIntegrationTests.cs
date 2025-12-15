@@ -247,15 +247,15 @@ public class ConnectivityHealthCheckIntegrationTests : IDisposable
     [Fact]
     public async Task HttpPost_ReturnsHealthy_WhenEndpointAcceptsPost()
     {
-        // Arrange - httpbin.org/post accepts POST requests and returns 200
+        // Arrange - postman-echo.com/post accepts POST requests and returns 200
         var config = CreateProxyConfig(new Dictionary<string, TargetConfig>
         {
             ["httpbin"] = new TargetConfig
             {
-                Endpoint = "https://httpbin.org",
+                Endpoint = "https://postman-echo.com",
                 HealthCheck = new HealthCheckConfig
                 {
-                    Url = "https://httpbin.org/post",
+                    Url = "https://postman-echo.com/post",
                     Enabled = true,
                     Type = HealthCheckType.HttpPost
                 }
@@ -281,10 +281,10 @@ public class ConnectivityHealthCheckIntegrationTests : IDisposable
         {
             ["httpbin"] = new TargetConfig
             {
-                Endpoint = "https://httpbin.org",
+                Endpoint = "https://postman-echo.com",
                 HealthCheck = new HealthCheckConfig
                 {
-                    Url = "https://httpbin.org/post",
+                    Url = "https://postman-echo.com/post",
                     Enabled = true,
                     Type = HealthCheckType.HttpPost,
                     Body = "{\"test\": \"value\"}",
@@ -312,10 +312,10 @@ public class ConnectivityHealthCheckIntegrationTests : IDisposable
         {
             ["httpbin"] = new TargetConfig
             {
-                Endpoint = "https://httpbin.org",
+                Endpoint = "https://postman-echo.com",
                 HealthCheck = new HealthCheckConfig
                 {
-                    Url = "https://httpbin.org/post",
+                    Url = "https://postman-echo.com/post",
                     Enabled = true,
                     Type = HealthCheckType.HttpPost,
                     Body = "<root><test>value</test></root>",
@@ -343,10 +343,10 @@ public class ConnectivityHealthCheckIntegrationTests : IDisposable
         {
             ["httpbin"] = new TargetConfig
             {
-                Endpoint = "https://httpbin.org",
+                Endpoint = "https://postman-echo.com",
                 HealthCheck = new HealthCheckConfig
                 {
-                    Url = "https://httpbin.org/post",
+                    Url = "https://postman-echo.com/post",
                     Enabled = true,
                     Type = HealthCheckType.HttpPost,
                     Body = "key1=value1&key2=value2",
@@ -369,15 +369,15 @@ public class ConnectivityHealthCheckIntegrationTests : IDisposable
     [Fact]
     public async Task HttpPost_ReturnsUnhealthy_WhenEndpointOnlyAcceptsGet()
     {
-        // Arrange - httpbin.org/get returns 405 Method Not Allowed for POST
+        // Arrange - postman-echo.com/get returns 405 Method Not Allowed for POST
         var config = CreateProxyConfig(new Dictionary<string, TargetConfig>
         {
             ["httpbin"] = new TargetConfig
             {
-                Endpoint = "https://httpbin.org",
+                Endpoint = "https://postman-echo.com",
                 HealthCheck = new HealthCheckConfig
                 {
-                    Url = "https://httpbin.org/get",
+                    Url = "https://postman-echo.com/get",
                     Enabled = true,
                     Type = HealthCheckType.HttpPost,
                     ExpectedStatusCodes = new List<int> { 200 }
@@ -397,20 +397,20 @@ public class ConnectivityHealthCheckIntegrationTests : IDisposable
     }
 
     [Fact]
-    public async Task HttpPost_ReturnsHealthy_WithCustomExpectedStatusCode()
+    public async Task HttpPost_ReturnsHealthy_WithMatchingExpectedStatusCode()
     {
-        // Arrange - httpbin.org/status/201 returns 201
+        // Arrange - postman-echo.com/post returns 200, and we expect 200
         var config = CreateProxyConfig(new Dictionary<string, TargetConfig>
         {
-            ["httpbin"] = new TargetConfig
+            ["postman-echo"] = new TargetConfig
             {
-                Endpoint = "https://httpbin.org",
+                Endpoint = "https://postman-echo.com",
                 HealthCheck = new HealthCheckConfig
                 {
-                    Url = "https://httpbin.org/status/201",
+                    Url = "https://postman-echo.com/post",
                     Enabled = true,
                     Type = HealthCheckType.HttpPost,
-                    ExpectedStatusCodes = new List<int> { 201 }
+                    ExpectedStatusCodes = new List<int> { 200 }
                 }
             }
         });
@@ -427,17 +427,47 @@ public class ConnectivityHealthCheckIntegrationTests : IDisposable
     }
 
     [Fact]
-    public async Task HttpPost_ReturnsHealthy_WithMultipleExpectedStatusCodes()
+    public async Task HttpPost_ReturnsUnhealthy_WithNonMatchingExpectedStatusCode()
     {
-        // Arrange - Accepting 200, 201, 202
+        // Arrange - postman-echo.com/post returns 200, but we expect 201
         var config = CreateProxyConfig(new Dictionary<string, TargetConfig>
         {
-            ["httpbin"] = new TargetConfig
+            ["postman-echo"] = new TargetConfig
             {
-                Endpoint = "https://httpbin.org",
+                Endpoint = "https://postman-echo.com",
                 HealthCheck = new HealthCheckConfig
                 {
-                    Url = "https://httpbin.org/status/202",
+                    Url = "https://postman-echo.com/post",
+                    Enabled = true,
+                    Type = HealthCheckType.HttpPost,
+                    ExpectedStatusCodes = new List<int> { 201 }
+                }
+            }
+        });
+
+        _mockConfigService.Setup(c => c.GetProxyConfig()).Returns(config);
+        var healthCheck = CreateHealthCheck();
+
+        // Act
+        var result = await healthCheck.CheckHealthAsync(new HealthCheckContext());
+
+        // Assert
+        Assert.Equal(HealthStatus.Unhealthy, result.Status);
+        Assert.Equal(1, result.Data["unhealthy_targets"]);
+    }
+
+    [Fact]
+    public async Task HttpPost_ReturnsHealthy_WithMultipleExpectedStatusCodes()
+    {
+        // Arrange - postman-echo.com/post returns 200, and 200 is in our expected list
+        var config = CreateProxyConfig(new Dictionary<string, TargetConfig>
+        {
+            ["postman-echo"] = new TargetConfig
+            {
+                Endpoint = "https://postman-echo.com",
+                HealthCheck = new HealthCheckConfig
+                {
+                    Url = "https://postman-echo.com/post",
                     Enabled = true,
                     Type = HealthCheckType.HttpPost,
                     ExpectedStatusCodes = new List<int> { 200, 201, 202 }
@@ -456,20 +486,84 @@ public class ConnectivityHealthCheckIntegrationTests : IDisposable
         Assert.Equal(1, result.Data["healthy_targets"]);
     }
 
+    #endregion
+
+    #region HTTP GET Status Code Tests
+
     [Fact]
-    public async Task HttpPost_ReturnsHealthy_When401Received()
+    public async Task HttpGet_ReturnsHealthy_WithCustomExpectedStatusCode()
+    {
+        // Arrange - postman-echo.com/status/201 returns 201
+        var config = CreateProxyConfig(new Dictionary<string, TargetConfig>
+        {
+            ["postman-echo"] = new TargetConfig
+            {
+                Endpoint = "https://postman-echo.com",
+                HealthCheck = new HealthCheckConfig
+                {
+                    Url = "https://postman-echo.com/status/201",
+                    Enabled = true,
+                    Type = HealthCheckType.HttpGet,
+                    ExpectedStatusCodes = new List<int> { 201 }
+                }
+            }
+        });
+
+        _mockConfigService.Setup(c => c.GetProxyConfig()).Returns(config);
+        var healthCheck = CreateHealthCheck();
+
+        // Act
+        var result = await healthCheck.CheckHealthAsync(new HealthCheckContext());
+
+        // Assert
+        Assert.Equal(HealthStatus.Healthy, result.Status);
+        Assert.Equal(1, result.Data["healthy_targets"]);
+    }
+
+    [Fact]
+    public async Task HttpGet_ReturnsHealthy_WithMultipleExpectedStatusCodes()
+    {
+        // Arrange - Accepting 200, 201, 202 (postman-echo.com/status/202 returns 202)
+        var config = CreateProxyConfig(new Dictionary<string, TargetConfig>
+        {
+            ["postman-echo"] = new TargetConfig
+            {
+                Endpoint = "https://postman-echo.com",
+                HealthCheck = new HealthCheckConfig
+                {
+                    Url = "https://postman-echo.com/status/202",
+                    Enabled = true,
+                    Type = HealthCheckType.HttpGet,
+                    ExpectedStatusCodes = new List<int> { 200, 201, 202 }
+                }
+            }
+        });
+
+        _mockConfigService.Setup(c => c.GetProxyConfig()).Returns(config);
+        var healthCheck = CreateHealthCheck();
+
+        // Act
+        var result = await healthCheck.CheckHealthAsync(new HealthCheckContext());
+
+        // Assert
+        Assert.Equal(HealthStatus.Healthy, result.Status);
+        Assert.Equal(1, result.Data["healthy_targets"]);
+    }
+
+    [Fact]
+    public async Task HttpGet_ReturnsHealthy_When401Received()
     {
         // Arrange - 401 is always considered healthy (service is responding, just requires auth)
         var config = CreateProxyConfig(new Dictionary<string, TargetConfig>
         {
-            ["httpbin"] = new TargetConfig
+            ["postman-echo"] = new TargetConfig
             {
-                Endpoint = "https://httpbin.org",
+                Endpoint = "https://postman-echo.com",
                 HealthCheck = new HealthCheckConfig
                 {
-                    Url = "https://httpbin.org/status/401",
+                    Url = "https://postman-echo.com/status/401",
                     Enabled = true,
-                    Type = HealthCheckType.HttpPost,
+                    Type = HealthCheckType.HttpGet,
                     ExpectedStatusCodes = new List<int> { 200 } // Even though 401 is not in expected codes
                 }
             }
