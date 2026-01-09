@@ -42,6 +42,7 @@ public class OAuth1IntegrationTestFixture : IAsyncLifetime
     public HttpClient HttpClient { get; private set; } = null!;
 
     private readonly string _composeFilePath;
+    private readonly string _projectName = "oauth1-integration";
     private bool _containersStarted;
     private bool _skipContainerManagement;
 
@@ -119,7 +120,7 @@ public class OAuth1IntegrationTestFixture : IAsyncLifetime
             Console.WriteLine("Stopping OAuth1 integration test containers...");
             try
             {
-                await RunDockerComposeAsync("down", "-v", "--remove-orphans");
+                await RunDockerComposeAsync("down", "-v");
                 Console.WriteLine("Containers stopped and cleaned up.");
             }
             catch (Exception ex)
@@ -131,7 +132,7 @@ public class OAuth1IntegrationTestFixture : IAsyncLifetime
 
     private async Task RunDockerComposeAsync(params string[] args)
     {
-        var arguments = $"-f \"{_composeFilePath}\" {string.Join(" ", args)}";
+        var arguments = $"-p {_projectName} -f \"{_composeFilePath}\" {string.Join(" ", args)}";
 
         var startInfo = new ProcessStartInfo
         {
