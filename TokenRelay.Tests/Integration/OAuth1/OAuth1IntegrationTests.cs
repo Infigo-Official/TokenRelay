@@ -1,7 +1,6 @@
 using System;
 using System.Net;
 using System.Net.Http;
-using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -21,7 +20,7 @@ namespace TokenRelay.Tests.Integration.OAuth1;
 ///
 /// Prerequisites:
 /// - Docker and docker-compose must be installed
-/// - Port 5163 (TokenRelay) and 8081 (OAuth1 server) must be available
+/// - Port 5193 (TokenRelay) and 8191 (OAuth1 server) must be available
 ///
 /// Running tests:
 ///   dotnet test --filter "Category=OAuth1"
