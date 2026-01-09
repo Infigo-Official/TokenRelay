@@ -224,22 +224,46 @@ public class ProxyService : IProxyService
                 context.Request.ContentLength?.ToString() ?? "chunked",
                 string.Join(", ", context.Request.Headers.TransferEncoding.Select(te => te ?? "unknown")));
 
-            // Buffer the request body into memory for the outgoing HttpClient request.
-            // We use ByteArrayContent instead of StreamContent because ByteArrayContent
-            // sets Content-Length correctly based on actual buffered bytes.
-            using var memoryStream = new MemoryStream();
-            await context.Request.Body.CopyToAsync(memoryStream);
-            var content = new ByteArrayContent(memoryStream.ToArray());
+            // Threshold for buffering vs streaming (1MB)
+            // Small bodies: buffer into ByteArrayContent (sets Content-Length automatically)
+            // Large bodies: stream directly using StreamContent (more memory efficient)
+            const int BufferThresholdBytes = 1 * 1024 * 1024;
+            var contentLength = context.Request.ContentLength ?? 0;
 
-            _logger.LogDebug("ProxyService: Buffered {BufferedSize} bytes from request body", memoryStream.Length);
+            HttpContent content;
 
-            // Copy content headers (but let ByteArrayContent set Content-Length)
+            if (contentLength > 0 && contentLength <= BufferThresholdBytes)
+            {
+                // Small body: buffer into memory
+                using var memoryStream = new MemoryStream((int)contentLength);
+                await context.Request.Body.CopyToAsync(memoryStream);
+                content = new ByteArrayContent(memoryStream.ToArray());
+                _logger.LogDebug("ProxyService: Buffered {BufferedSize} bytes from request body (small body path)", memoryStream.Length);
+            }
+            else
+            {
+                // Large body or chunked: stream directly
+                // EnableBuffering() in Program.cs ensures the stream is seekable
+                context.Request.Body.Position = 0;
+                content = new StreamContent(context.Request.Body);
+
+                // For StreamContent, we must set Content-Length explicitly if known
+                if (contentLength > 0)
+                {
+                    content.Headers.ContentLength = contentLength;
+                }
+
+                _logger.LogDebug("ProxyService: Streaming request body directly (large body path, {ContentLength} bytes)",
+                    contentLength > 0 ? contentLength.ToString() : "chunked");
+            }
+
+            // Copy content headers (skip Content-Length as it's already set appropriately)
             var contentHeaderCount = 0;
             foreach (var header in context.Request.Headers)
             {
                 if (IsContentHeader(header.Key))
                 {
-                    // Skip Content-Length as ByteArrayContent will set it correctly based on actual content
+                    // Skip Content-Length as it's already set by ByteArrayContent or explicitly for StreamContent
                     if (header.Key.Equals("Content-Length", StringComparison.OrdinalIgnoreCase))
                     {
                         continue;

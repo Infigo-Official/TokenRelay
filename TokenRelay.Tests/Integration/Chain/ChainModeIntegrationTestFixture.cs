@@ -70,9 +70,10 @@ public class ChainModeIntegrationTestFixture : IAsyncLifetime
         var downstreamPort = Environment.GetEnvironmentVariable("CHAIN_DOWNSTREAM_PORT") ?? "5197";
         var serverPort = Environment.GetEnvironmentVariable("CHAIN_SERVER_PORT") ?? "8195";
 
-        UpstreamBaseUrl = $"http://localhost:{upstreamPort}";
-        DownstreamBaseUrl = $"http://localhost:{downstreamPort}";
-        MockServerBaseUrl = $"http://localhost:{serverPort}";
+        // Use 127.0.0.1 instead of localhost to avoid IPv6 resolution issues on Windows
+        UpstreamBaseUrl = $"http://127.0.0.1:{upstreamPort}";
+        DownstreamBaseUrl = $"http://127.0.0.1:{downstreamPort}";
+        MockServerBaseUrl = $"http://127.0.0.1:{serverPort}";
 
         // Path relative to test execution directory
         var baseDir = AppContext.BaseDirectory;
@@ -105,6 +106,17 @@ public class ChainModeIntegrationTestFixture : IAsyncLifetime
                 throw new FileNotFoundException(
                     $"Docker Compose file not found: {_composeFilePath}. " +
                     "Ensure you're running tests from the correct directory.");
+            }
+
+            // Clean up any existing containers from previous runs (may have been interrupted)
+            Console.WriteLine("Cleaning up any existing containers...");
+            try
+            {
+                await RunDockerComposeAsync("down", "-v");
+            }
+            catch
+            {
+                // Ignore errors from down - containers may not exist
             }
 
             // Start containers with build

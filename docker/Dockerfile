@@ -9,7 +9,10 @@ FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /src
 
 # Accept version argument
+# VERSION: semantic version (e.g., 1.0.0-docker or 1.2.3)
+# ASSEMBLY_VERSION: numeric-only version for AssemblyVersion/FileVersion (e.g., 1.0.0.0)
 ARG VERSION=1.0.0-docker
+ARG ASSEMBLY_VERSION=1.0.0.0
 ARG BUILD_DATE
 
 # Copy project file and restore dependencies
@@ -23,17 +26,18 @@ RUN rm -f TokenRelay/tokenrelay.json
 WORKDIR "/src/TokenRelay"
 RUN dotnet build "TokenRelay.csproj" -c Release -o /app/build \
     /p:Version=${VERSION} \
-    /p:AssemblyVersion=${VERSION}.0 \
-    /p:FileVersion=${VERSION}.0
+    /p:AssemblyVersion=${ASSEMBLY_VERSION} \
+    /p:FileVersion=${ASSEMBLY_VERSION}
 
 # Publish the application
 FROM build AS publish
 ARG VERSION=1.0.0-docker
+ARG ASSEMBLY_VERSION=1.0.0.0
 RUN dotnet publish "TokenRelay.csproj" -c Release -o /app/publish \
     /p:UseAppHost=false \
     /p:Version=${VERSION} \
-    /p:AssemblyVersion=${VERSION}.0 \
-    /p:FileVersion=${VERSION}.0
+    /p:AssemblyVersion=${ASSEMBLY_VERSION} \
+    /p:FileVersion=${ASSEMBLY_VERSION}
 
 # Final stage - create runtime image
 FROM base AS final

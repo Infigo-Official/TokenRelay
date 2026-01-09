@@ -52,10 +52,11 @@ public class OAuth2IntegrationTestFixture : IAsyncLifetime
         _skipContainerManagement = Environment.GetEnvironmentVariable("OAUTH2_SKIP_DOCKER") == "true";
 
         // Allow port overrides for CI environments
+        // Use 127.0.0.1 instead of localhost to avoid IPv6 resolution issues on Windows
         var tokenRelayPort = Environment.GetEnvironmentVariable("OAUTH2_TOKENRELAY_PORT") ?? "5194";
         var oauth2ServerPort = Environment.GetEnvironmentVariable("OAUTH2_SERVER_PORT") ?? "8192";
-        TokenRelayBaseUrl = $"http://localhost:{tokenRelayPort}";
-        OAuth2ServerBaseUrl = $"http://localhost:{oauth2ServerPort}";
+        TokenRelayBaseUrl = $"http://127.0.0.1:{tokenRelayPort}";
+        OAuth2ServerBaseUrl = $"http://127.0.0.1:{oauth2ServerPort}";
 
         // Path relative to test execution directory
         // When running from TokenRelay.Tests/bin/Debug/net8.0, we need to go up to the repo root
@@ -89,6 +90,17 @@ public class OAuth2IntegrationTestFixture : IAsyncLifetime
                 throw new FileNotFoundException(
                     $"Docker Compose file not found: {_composeFilePath}. " +
                     "Ensure you're running tests from the correct directory.");
+            }
+
+            // Clean up any existing containers from previous runs (may have been interrupted)
+            Console.WriteLine("Cleaning up any existing containers...");
+            try
+            {
+                await RunDockerComposeAsync("down", "-v");
+            }
+            catch
+            {
+                // Ignore errors from down - containers may not exist
             }
 
             // Start containers with build
