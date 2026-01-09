@@ -223,17 +223,20 @@ public class OAuth1Service : IOAuth1Service
     }
 
     /// <summary>
-    /// Generates a cryptographically secure random nonce.
+    /// Generates a cryptographically secure random nonce with timestamp prefix for debugging.
+    /// Format: {timestamp_ms}_{random_bytes}
     /// </summary>
     public static string GenerateNonce()
     {
-        var bytes = new byte[32];
+        var timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+        var bytes = new byte[16];
         using var rng = RandomNumberGenerator.Create();
         rng.GetBytes(bytes);
-        return Convert.ToBase64String(bytes)
+        var randomPart = Convert.ToBase64String(bytes)
             .Replace("+", "")
             .Replace("/", "")
             .Replace("=", "");
+        return $"{timestamp}{randomPart}";
     }
 
     /// <summary>

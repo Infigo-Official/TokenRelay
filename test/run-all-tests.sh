@@ -180,7 +180,7 @@ start_docker_containers() {
             return 1
         fi
 
-        if curl -s -f "$health_url" > /dev/null 2>&1; then
+        if curl -s -f --max-time 5 "$health_url" > /dev/null 2>&1; then
             healthy=true
             write_success "Services are healthy"
         else
@@ -230,20 +230,20 @@ run_dotnet_test() {
     local failed=0
     local skipped=0
 
-    # Try to extract counts from output
+    # Try to extract counts from output (compatible with BSD and GNU grep)
     if echo "$output" | grep -q "Passed:"; then
-        passed=$(echo "$output" | grep -oP "Passed:\s*\K\d+" | tail -1 || echo "0")
-        failed=$(echo "$output" | grep -oP "Failed:\s*\K\d+" | tail -1 || echo "0")
-        skipped=$(echo "$output" | grep -oP "Skipped:\s*\K\d+" | tail -1 || echo "0")
+        passed=$(echo "$output" | grep -E "Passed:\s*[0-9]+" | sed 's/.*Passed:[[:space:]]*//' | grep -oE "^[0-9]+" | tail -1 || echo "0")
+        failed=$(echo "$output" | grep -E "Failed:\s*[0-9]+" | sed 's/.*Failed:[[:space:]]*//' | grep -oE "^[0-9]+" | tail -1 || echo "0")
+        skipped=$(echo "$output" | grep -E "Skipped:\s*[0-9]+" | sed 's/.*Skipped:[[:space:]]*//' | grep -oE "^[0-9]+" | tail -1 || echo "0")
     fi
 
     # Fallback: try alternative format
     if [ "$passed" = "0" ] && [ "$failed" = "0" ]; then
         local summary_line=$(echo "$output" | grep -E "Total tests:|Passed!|Failed!" | tail -1)
         if [ -n "$summary_line" ]; then
-            passed=$(echo "$summary_line" | grep -oP "Passed:\s*\K\d+" || echo "0")
-            failed=$(echo "$summary_line" | grep -oP "Failed:\s*\K\d+" || echo "0")
-            skipped=$(echo "$summary_line" | grep -oP "Skipped:\s*\K\d+" || echo "0")
+            passed=$(echo "$summary_line" | grep -E "Passed:\s*[0-9]+" | sed 's/.*Passed:[[:space:]]*//' | grep -oE "^[0-9]+" || echo "0")
+            failed=$(echo "$summary_line" | grep -E "Failed:\s*[0-9]+" | sed 's/.*Failed:[[:space:]]*//' | grep -oE "^[0-9]+" || echo "0")
+            skipped=$(echo "$summary_line" | grep -E "Skipped:\s*[0-9]+" | sed 's/.*Skipped:[[:space:]]*//' | grep -oE "^[0-9]+" || echo "0")
         fi
     fi
 

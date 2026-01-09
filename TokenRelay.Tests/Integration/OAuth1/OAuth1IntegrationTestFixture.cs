@@ -12,18 +12,24 @@ namespace TokenRelay.Tests.Integration.OAuth1;
 /// Uses docker-compose to start mock-oauth1-server and tokenrelay containers.
 ///
 /// Implements IAsyncLifetime for async setup/teardown of Docker containers.
+///
+/// Environment Variables:
+///   OAUTH1_TOKENRELAY_PORT - Override TokenRelay port (default: 5193)
+///   OAUTH1_SERVER_PORT - Override OAuth1 server port (default: 8191)
 /// </summary>
 public class OAuth1IntegrationTestFixture : IAsyncLifetime
 {
     /// <summary>
     /// Base URL for the TokenRelay proxy service.
+    /// Override with OAUTH1_TOKENRELAY_PORT environment variable.
     /// </summary>
-    public string TokenRelayBaseUrl { get; } = "http://localhost:5193";
+    public string TokenRelayBaseUrl { get; }
 
     /// <summary>
     /// Base URL for the Mock OAuth1 Server (for direct testing).
+    /// Override with OAUTH1_SERVER_PORT environment variable.
     /// </summary>
-    public string OAuth1ServerBaseUrl { get; } = "http://localhost:8191";
+    public string OAuth1ServerBaseUrl { get; }
 
     /// <summary>
     /// Authentication token for TokenRelay proxy requests.
@@ -43,6 +49,12 @@ public class OAuth1IntegrationTestFixture : IAsyncLifetime
     {
         // Allow skipping container management for manual testing
         _skipContainerManagement = Environment.GetEnvironmentVariable("OAUTH1_SKIP_DOCKER") == "true";
+
+        // Allow port overrides for CI environments
+        var tokenRelayPort = Environment.GetEnvironmentVariable("OAUTH1_TOKENRELAY_PORT") ?? "5193";
+        var oauth1ServerPort = Environment.GetEnvironmentVariable("OAUTH1_SERVER_PORT") ?? "8191";
+        TokenRelayBaseUrl = $"http://localhost:{tokenRelayPort}";
+        OAuth1ServerBaseUrl = $"http://localhost:{oauth1ServerPort}";
 
         // Path relative to test execution directory
         // When running from TokenRelay.Tests/bin/Debug/net8.0, we need to go up to the repo root
