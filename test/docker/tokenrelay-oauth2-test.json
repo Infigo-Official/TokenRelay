@@ -1,0 +1,73 @@
+{
+  "proxy": {
+    "auth": {
+      "tokens": ["test-token-for-oauth2-integration"],
+      "encryptionKey": "integration-test-32-char-key-ok"
+    },
+    "mode": "direct",
+    "timeoutSeconds": 30,
+    "logBufferMinutes": 10,
+    "permissions": {
+      "allowTargetConfigOverride": false,
+      "allowLogRetrieval": true,
+      "allowLogLevelAdjustment": true
+    },
+    "targets": {
+      "oauth2-password-grant": {
+        "enabled": true,
+        "endpoint": "http://mock-oauth-server:8080",
+        "description": "OAuth2 Password Grant Test Target",
+        "authType": "oauth",
+        "authData": {
+          "token_endpoint": "http://mock-oauth-server:8080/v1/oauth/tokens",
+          "grant_type": "password",
+          "client_id": "test_client_1",
+          "client_secret": "test_secret_1",
+          "username": "test_user",
+          "password": "test_password",
+          "scope": "read write"
+        },
+        "healthCheck": {
+          "url": "http://mock-oauth-server:8080/health",
+          "enabled": true,
+          "type": "HttpGet"
+        }
+      },
+      "oauth2-client-credentials": {
+        "enabled": true,
+        "endpoint": "http://mock-oauth-server:8080",
+        "description": "OAuth2 Client Credentials Grant Test Target",
+        "authType": "oauth",
+        "authData": {
+          "token_endpoint": "http://mock-oauth-server:8080/v1/oauth/tokens",
+          "grant_type": "client_credentials",
+          "client_id": "test_client_1",
+          "client_secret": "test_secret_1",
+          "scope": "read"
+        }
+      },
+      "oauth2-dynamic-endpoint": {
+        "enabled": true,
+        "endpoint": "http://mock-oauth-server:8080",
+        "description": "OAuth2 with dynamic token endpoint (built from base URL)",
+        "authType": "oauth",
+        "authData": {
+          "grant_type": "client_credentials",
+          "client_id": "test_client_1",
+          "client_secret": "test_secret_1",
+          "token_path": "/v1/oauth/tokens"
+        }
+      },
+      "no-auth-target": {
+        "enabled": true,
+        "endpoint": "http://mock-oauth-server:8080",
+        "description": "Target without authentication for comparison",
+        "authType": "none"
+      }
+    }
+  },
+  "logging": {
+    "level": "Debug",
+    "destinations": ["console"]
+  }
+}

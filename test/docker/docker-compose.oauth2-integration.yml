@@ -1,0 +1,59 @@
+# OAuth2 Integration Test Docker Compose
+# Usage:
+#   docker-compose -f docker-compose.oauth2-integration.yml up -d --build
+#   dotnet test --filter "Category=OAuth2Integration"
+#   docker-compose -f docker-compose.oauth2-integration.yml down -v
+
+services:
+  # Mock OAuth2 Server - issues tokens and validates them on protected endpoints
+  mock-oauth-server:
+    build:
+      context: ../../docker/mock-oauth-server
+      dockerfile: Dockerfile
+    container_name: oauth2-test-server
+    ports:
+      - "${OAUTH2_SERVER_PORT:-8192}:8080"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+    restart: unless-stopped
+    networks:
+      - oauth2-test-network
+
+  # TokenRelay Proxy - configured with OAuth2 targets
+  tokenrelay:
+    build:
+      context: ../..
+      dockerfile: docker/Dockerfile
+      args:
+        VERSION: 0.0.1
+    container_name: tokenrelay-oauth2-test
+    ports:
+      - "${TOKENRELAY_PORT:-5194}:80"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=http://+:80
+      - ConfigPath=/app/tokenrelay.json
+      - TOKENRELAY_CONFIG_MODE=file
+    volumes:
+      - ./tokenrelay-oauth2-test.json:/app/tokenrelay.json:ro
+    depends_on:
+      mock-oauth-server:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+    networks:
+      - oauth2-test-network
+
+networks:
+  oauth2-test-network:
+    name: tokenrelay-oauth2-test-network
+    driver: bridge

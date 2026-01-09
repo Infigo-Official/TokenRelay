@@ -100,6 +100,14 @@ public class TargetConfig
 
     // OAuth authentication data (generic key-value pairs)
     public Dictionary<string, string> AuthData { get; set; } = new();
+
+    /// <summary>
+    /// Optional query parameters to append to the target URL.
+    /// These are merged with any query parameters from the incoming request.
+    /// Request parameters take precedence over configured parameters.
+    /// Useful for NetSuite script/deploy params, API versioning, etc.
+    /// </summary>
+    public Dictionary<string, string> QueryParams { get; set; } = new();
 }
 
 /// <summary>
