@@ -5,36 +5,50 @@ using System.Net.Http;
 using System.Threading.Tasks;
 using Xunit;
 
-namespace TokenRelay.Tests.Integration.OAuth1;
+namespace TokenRelay.Tests.Integration.Chain;
 
 /// <summary>
-/// Fixture for OAuth1 integration tests that manages Docker container lifecycle.
-/// Uses docker-compose to start mock-oauth1-server and tokenrelay containers.
+/// Fixture for Chain Mode integration tests that manages Docker container lifecycle.
+/// Uses docker-compose to start two TokenRelay instances in chain configuration:
+///   Client -> TokenRelay-Upstream (chain mode) -> TokenRelay-Downstream (direct mode) -> Mock Server
 ///
 /// Implements IAsyncLifetime for async setup/teardown of Docker containers.
 ///
 /// Environment Variables:
-///   OAUTH1_TOKENRELAY_PORT - Override TokenRelay port (default: 5193)
-///   OAUTH1_SERVER_PORT - Override OAuth1 server port (default: 8191)
+///   CHAIN_UPSTREAM_PORT - Override upstream TokenRelay port (default: 5196)
+///   CHAIN_DOWNSTREAM_PORT - Override downstream TokenRelay port (default: 5197)
+///   CHAIN_SERVER_PORT - Override mock server port (default: 8195)
+///   CHAIN_SKIP_DOCKER - Skip Docker container management (for manual testing)
 /// </summary>
-public class OAuth1IntegrationTestFixture : IAsyncLifetime
+public class ChainModeIntegrationTestFixture : IAsyncLifetime
 {
     /// <summary>
-    /// Base URL for the TokenRelay proxy service.
-    /// Override with OAUTH1_TOKENRELAY_PORT environment variable.
+    /// Base URL for the Upstream TokenRelay proxy (chain mode - entry point).
+    /// Override with CHAIN_UPSTREAM_PORT environment variable.
     /// </summary>
-    public string TokenRelayBaseUrl { get; }
+    public string UpstreamBaseUrl { get; }
 
     /// <summary>
-    /// Base URL for the Mock OAuth1 Server (for direct testing).
-    /// Override with OAUTH1_SERVER_PORT environment variable.
+    /// Base URL for the Downstream TokenRelay proxy (direct mode - connects to mock server).
+    /// Override with CHAIN_DOWNSTREAM_PORT environment variable.
     /// </summary>
-    public string OAuth1ServerBaseUrl { get; }
+    public string DownstreamBaseUrl { get; }
 
     /// <summary>
-    /// Authentication token for TokenRelay proxy requests.
+    /// Base URL for the Mock OAuth2 Server (for direct testing).
+    /// Override with CHAIN_SERVER_PORT environment variable.
     /// </summary>
-    public string AuthToken { get; } = "test-token-for-oauth1-integration";
+    public string MockServerBaseUrl { get; }
+
+    /// <summary>
+    /// Authentication token for the Upstream TokenRelay proxy.
+    /// </summary>
+    public string UpstreamAuthToken { get; } = "test-token-for-chain-integration";
+
+    /// <summary>
+    /// Authentication token for the Downstream TokenRelay proxy.
+    /// </summary>
+    public string DownstreamAuthToken { get; } = "test-token-for-chain-downstream";
 
     /// <summary>
     /// Shared HttpClient for making test requests.
@@ -42,32 +56,34 @@ public class OAuth1IntegrationTestFixture : IAsyncLifetime
     public HttpClient HttpClient { get; private set; } = null!;
 
     private readonly string _composeFilePath;
-    private readonly string _projectName = "oauth1-integration";
+    private readonly string _projectName = "chain-integration";
     private bool _containersStarted;
     private bool _skipContainerManagement;
 
-    public OAuth1IntegrationTestFixture()
+    public ChainModeIntegrationTestFixture()
     {
         // Allow skipping container management for manual testing
-        _skipContainerManagement = Environment.GetEnvironmentVariable("OAUTH1_SKIP_DOCKER") == "true";
+        _skipContainerManagement = Environment.GetEnvironmentVariable("CHAIN_SKIP_DOCKER") == "true";
 
         // Allow port overrides for CI environments
-        var tokenRelayPort = Environment.GetEnvironmentVariable("OAUTH1_TOKENRELAY_PORT") ?? "5193";
-        var oauth1ServerPort = Environment.GetEnvironmentVariable("OAUTH1_SERVER_PORT") ?? "8191";
-        TokenRelayBaseUrl = $"http://localhost:{tokenRelayPort}";
-        OAuth1ServerBaseUrl = $"http://localhost:{oauth1ServerPort}";
+        var upstreamPort = Environment.GetEnvironmentVariable("CHAIN_UPSTREAM_PORT") ?? "5196";
+        var downstreamPort = Environment.GetEnvironmentVariable("CHAIN_DOWNSTREAM_PORT") ?? "5197";
+        var serverPort = Environment.GetEnvironmentVariable("CHAIN_SERVER_PORT") ?? "8195";
+
+        UpstreamBaseUrl = $"http://localhost:{upstreamPort}";
+        DownstreamBaseUrl = $"http://localhost:{downstreamPort}";
+        MockServerBaseUrl = $"http://localhost:{serverPort}";
 
         // Path relative to test execution directory
-        // When running from TokenRelay.Tests/bin/Debug/net8.0, we need to go up to the repo root
         var baseDir = AppContext.BaseDirectory;
         _composeFilePath = Path.GetFullPath(
-            Path.Combine(baseDir, "../../../../test/docker/docker-compose.oauth1-integration.yml"));
+            Path.Combine(baseDir, "../../../../test/docker/docker-compose.chain-integration.yml"));
 
         // Alternative: if running from solution root
         if (!File.Exists(_composeFilePath))
         {
             _composeFilePath = Path.GetFullPath(
-                Path.Combine(baseDir, "../../../../../test/docker/docker-compose.oauth1-integration.yml"));
+                Path.Combine(baseDir, "../../../../../test/docker/docker-compose.chain-integration.yml"));
         }
     }
 
@@ -75,13 +91,13 @@ public class OAuth1IntegrationTestFixture : IAsyncLifetime
     {
         if (_skipContainerManagement)
         {
-            Console.WriteLine("OAUTH1_SKIP_DOCKER=true - Skipping Docker container startup");
+            Console.WriteLine("CHAIN_SKIP_DOCKER=true - Skipping Docker container startup");
             Console.WriteLine("Ensure containers are running manually with:");
             Console.WriteLine($"  docker-compose -f \"{_composeFilePath}\" up -d --build");
         }
         else
         {
-            Console.WriteLine($"Starting OAuth1 integration test containers...");
+            Console.WriteLine($"Starting Chain Mode integration test containers...");
             Console.WriteLine($"Docker Compose file: {_composeFilePath}");
 
             if (!File.Exists(_composeFilePath))
@@ -104,11 +120,12 @@ public class OAuth1IntegrationTestFixture : IAsyncLifetime
             Timeout = TimeSpan.FromSeconds(30)
         };
 
-        // Wait for services to be healthy
-        await WaitForServiceHealthAsync(OAuth1ServerBaseUrl + "/health", "OAuth1 Server", TimeSpan.FromSeconds(60));
-        await WaitForServiceHealthAsync(TokenRelayBaseUrl + "/health", "TokenRelay", TimeSpan.FromSeconds(90));
+        // Wait for services to be healthy (in order: mock server -> downstream -> upstream)
+        await WaitForServiceHealthAsync(MockServerBaseUrl + "/health", "Mock Server", TimeSpan.FromSeconds(60));
+        await WaitForServiceHealthAsync(DownstreamBaseUrl + "/health", "Downstream TokenRelay", TimeSpan.FromSeconds(90));
+        await WaitForServiceHealthAsync(UpstreamBaseUrl + "/health", "Upstream TokenRelay", TimeSpan.FromSeconds(90));
 
-        Console.WriteLine("All services healthy. Ready for testing.");
+        Console.WriteLine("All services healthy. Ready for Chain Mode testing.");
     }
 
     public async Task DisposeAsync()
@@ -117,7 +134,7 @@ public class OAuth1IntegrationTestFixture : IAsyncLifetime
 
         if (_containersStarted && !_skipContainerManagement)
         {
-            Console.WriteLine("Stopping OAuth1 integration test containers...");
+            Console.WriteLine("Stopping Chain Mode integration test containers...");
             try
             {
                 await RunDockerComposeAsync("down", "-v");
@@ -207,16 +224,27 @@ public class OAuth1IntegrationTestFixture : IAsyncLifetime
     }
 
     /// <summary>
-    /// Creates an HTTP request with TokenRelay authentication headers.
-    /// The target is specified via the TOKEN-RELAY-TARGET header, not in the URL path.
+    /// Creates an HTTP request to the Upstream proxy with TokenRelay authentication headers.
+    /// The request will be forwarded through the chain: Upstream -> Downstream -> Target.
     /// </summary>
-    public HttpRequestMessage CreateProxyRequest(HttpMethod method, string targetName, string path)
+    public HttpRequestMessage CreateChainProxyRequest(HttpMethod method, string targetName, string path)
     {
-        // URL format: /proxy/{path} where path is forwarded to the target endpoint
-        // The target is identified by the TOKEN-RELAY-TARGET header
-        var url = $"{TokenRelayBaseUrl}/proxy{path}";
+        var url = $"{UpstreamBaseUrl}/proxy{path}";
         var request = new HttpRequestMessage(method, url);
-        request.Headers.Add("TOKEN-RELAY-AUTH", AuthToken);
+        request.Headers.Add("TOKEN-RELAY-AUTH", UpstreamAuthToken);
+        request.Headers.Add("TOKEN-RELAY-TARGET", targetName);
+        return request;
+    }
+
+    /// <summary>
+    /// Creates an HTTP request directly to the Downstream proxy (bypassing upstream).
+    /// Used for comparison testing and validating downstream works independently.
+    /// </summary>
+    public HttpRequestMessage CreateDownstreamProxyRequest(HttpMethod method, string targetName, string path)
+    {
+        var url = $"{DownstreamBaseUrl}/proxy{path}";
+        var request = new HttpRequestMessage(method, url);
+        request.Headers.Add("TOKEN-RELAY-AUTH", DownstreamAuthToken);
         request.Headers.Add("TOKEN-RELAY-TARGET", targetName);
         return request;
     }

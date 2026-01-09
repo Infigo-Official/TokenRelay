@@ -102,7 +102,7 @@ dotnet publish -c Release -r linux-x64 --self-contained true `
 
 ### File Structure Created
 ```
-bin/Release/net8.0/publish/
+bin/Release/net10.0/publish/
 ├── TokenRelay.exe          ← Main executable (50.73 MB)
 ├── appsettings.json        ← Configuration files
 ├── appsettings.Development.json

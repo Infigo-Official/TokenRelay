@@ -243,6 +243,18 @@ if (app.Environment.IsDevelopment())
 
 app.UseCors();
 
+// Enable request body buffering so it can be read by the proxy service.
+// By default, ASP.NET Core's Request.Body is a forward-only network stream.
+// Without buffering, CopyToAsync reads 0 bytes because something in the
+// middleware pipeline (possibly routing or CORS) inspects or consumes the stream.
+// EnableBuffering() replaces the stream with a FileBufferingReadStream that
+// supports seeking, allowing the body to be read multiple times.
+app.Use(async (context, next) =>
+{
+    context.Request.EnableBuffering();
+    await next();
+});
+
 // Add authentication middleware (before authorization)
 app.UseMiddleware<AuthenticationMiddleware>();
 

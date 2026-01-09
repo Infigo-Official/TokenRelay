@@ -49,13 +49,13 @@
       "oauth2-dynamic-endpoint": {
         "enabled": true,
         "endpoint": "http://mock-oauth-server:8080",
-        "description": "OAuth2 with dynamic token endpoint (built from base URL)",
+        "description": "OAuth2 with token endpoint using full URL",
         "authType": "oauth",
         "authData": {
+          "token_endpoint": "http://mock-oauth-server:8080/v1/oauth/tokens",
           "grant_type": "client_credentials",
           "client_id": "test_client_1",
-          "client_secret": "test_secret_1",
-          "token_path": "/v1/oauth/tokens"
+          "client_secret": "test_secret_1"
         }
       },
       "no-auth-target": {
@@ -63,6 +63,304 @@
         "endpoint": "http://mock-oauth-server:8080",
         "description": "Target without authentication for comparison",
         "authType": "none"
+      },
+      "static-auth-target": {
+        "enabled": true,
+        "endpoint": "http://mock-oauth-server:8080",
+        "description": "Static auth target with custom headers for testing header injection",
+        "authType": "static",
+        "headers": {
+          "Authorization": "Bearer static-test-token-12345",
+          "X-API-Version": "v2",
+          "X-Custom-Header": "test-value"
+        }
+      },
+      "headers-only-target": {
+        "enabled": true,
+        "endpoint": "http://mock-oauth-server:8080",
+        "description": "Target with only custom headers (no auth) for testing header forwarding",
+        "authType": "none",
+        "headers": {
+          "X-Custom-Header": "custom-value",
+          "X-Request-Source": "TokenRelay"
+        }
+      },
+      "disabled-target": {
+        "enabled": false,
+        "endpoint": "http://mock-oauth-server:8080",
+        "description": "Disabled target for error testing"
+      },
+      "bad-oauth-target": {
+        "enabled": true,
+        "endpoint": "http://mock-oauth-server:8080",
+        "description": "Target with invalid OAuth credentials for error testing",
+        "authType": "oauth",
+        "authData": {
+          "token_endpoint": "http://mock-oauth-server:8080/v1/oauth/tokens",
+          "grant_type": "password",
+          "client_id": "invalid_client",
+          "client_secret": "wrong_secret",
+          "username": "test_user",
+          "password": "wrong_password"
+        }
+      },
+      "oauth2-basic-auth-inspect": {
+        "enabled": true,
+        "endpoint": "http://mock-oauth-server:8080",
+        "description": "OAuth2 target using Basic Auth inspection endpoint",
+        "authType": "oauth",
+        "authData": {
+          "token_endpoint": "http://mock-oauth-server:8080/v1/oauth/inspect-auth",
+          "grant_type": "client_credentials",
+          "client_id": "test_client_1",
+          "client_secret": "test_secret_1"
+        }
+      },
+      "oauth2-password-grant-inspect": {
+        "enabled": true,
+        "endpoint": "http://mock-oauth-server:8080",
+        "description": "OAuth2 password grant using Basic Auth inspection endpoint",
+        "authType": "oauth",
+        "authData": {
+          "token_endpoint": "http://mock-oauth-server:8080/v1/oauth/inspect-auth",
+          "grant_type": "password",
+          "client_id": "test_client_1",
+          "client_secret": "test_secret_1",
+          "username": "test_user",
+          "password": "test_password"
+        }
+      },
+      "oauth2-special-chars-secret": {
+        "enabled": true,
+        "endpoint": "http://mock-oauth-server:8080",
+        "description": "OAuth2 with special characters in credentials for encoding test",
+        "authType": "oauth",
+        "authData": {
+          "token_endpoint": "http://mock-oauth-server:8080/v1/oauth/inspect-auth",
+          "grant_type": "client_credentials",
+          "client_id": "test_client_1",
+          "client_secret": "test_secret_1"
+        }
+      },
+      "oauth2-malformed-response": {
+        "enabled": true,
+        "endpoint": "http://mock-oauth-server:8080",
+        "description": "OAuth2 target that returns malformed (HTML) response",
+        "authType": "oauth",
+        "authData": {
+          "token_endpoint": "http://mock-oauth-server:8080/v1/oauth/malformed",
+          "grant_type": "client_credentials",
+          "client_id": "test_client_1",
+          "client_secret": "test_secret_1"
+        }
+      },
+      "oauth2-empty-token": {
+        "enabled": true,
+        "endpoint": "http://mock-oauth-server:8080",
+        "description": "OAuth2 target that returns empty access_token",
+        "authType": "oauth",
+        "authData": {
+          "token_endpoint": "http://mock-oauth-server:8080/v1/oauth/empty-token",
+          "grant_type": "client_credentials",
+          "client_id": "test_client_1",
+          "client_secret": "test_secret_1"
+        }
+      },
+      "oauth2-null-token": {
+        "enabled": true,
+        "endpoint": "http://mock-oauth-server:8080",
+        "description": "OAuth2 target that returns null access_token",
+        "authType": "oauth",
+        "authData": {
+          "token_endpoint": "http://mock-oauth-server:8080/v1/oauth/null-token",
+          "grant_type": "client_credentials",
+          "client_id": "test_client_1",
+          "client_secret": "test_secret_1"
+        }
+      },
+      "oauth2-missing-token": {
+        "enabled": true,
+        "endpoint": "http://mock-oauth-server:8080",
+        "description": "OAuth2 target that returns response without access_token field",
+        "authType": "oauth",
+        "authData": {
+          "token_endpoint": "http://mock-oauth-server:8080/v1/oauth/missing-token",
+          "grant_type": "client_credentials",
+          "client_id": "test_client_1",
+          "client_secret": "test_secret_1"
+        }
+      },
+      "oauth2-custom-response-no-token-type": {
+        "enabled": true,
+        "endpoint": "http://mock-oauth-server:8080",
+        "description": "OAuth2 target with response missing token_type",
+        "authType": "oauth",
+        "authData": {
+          "token_endpoint": "http://mock-oauth-server:8080/v1/oauth/custom-response?omit_token_type=true",
+          "grant_type": "client_credentials",
+          "client_id": "test_client_1",
+          "client_secret": "test_secret_1"
+        }
+      },
+      "oauth2-custom-response-no-expires": {
+        "enabled": true,
+        "endpoint": "http://mock-oauth-server:8080",
+        "description": "OAuth2 target with response missing expires_in",
+        "authType": "oauth",
+        "authData": {
+          "token_endpoint": "http://mock-oauth-server:8080/v1/oauth/custom-response?omit_expires_in=true",
+          "grant_type": "client_credentials",
+          "client_id": "test_client_1",
+          "client_secret": "test_secret_1"
+        }
+      },
+      "oauth2-custom-response-zero-expires": {
+        "enabled": true,
+        "endpoint": "http://mock-oauth-server:8080",
+        "description": "OAuth2 target with zero expires_in",
+        "authType": "oauth",
+        "authData": {
+          "token_endpoint": "http://mock-oauth-server:8080/v1/oauth/custom-response?expires_in=0",
+          "grant_type": "client_credentials",
+          "client_id": "test_client_1",
+          "client_secret": "test_secret_1"
+        }
+      },
+      "oauth2-custom-response-negative-expires": {
+        "enabled": true,
+        "endpoint": "http://mock-oauth-server:8080",
+        "description": "OAuth2 target with negative expires_in",
+        "authType": "oauth",
+        "authData": {
+          "token_endpoint": "http://mock-oauth-server:8080/v1/oauth/custom-response?expires_in=-100",
+          "grant_type": "client_credentials",
+          "client_id": "test_client_1",
+          "client_secret": "test_secret_1"
+        }
+      },
+      "oauth2-error-403": {
+        "enabled": true,
+        "endpoint": "http://mock-oauth-server:8080",
+        "description": "OAuth2 target with 403 Forbidden error",
+        "authType": "oauth",
+        "authData": {
+          "token_endpoint": "http://mock-oauth-server:8080/v1/oauth/error/403",
+          "grant_type": "client_credentials",
+          "client_id": "test_client_1",
+          "client_secret": "test_secret_1"
+        }
+      },
+      "oauth2-error-500": {
+        "enabled": true,
+        "endpoint": "http://mock-oauth-server:8080",
+        "description": "OAuth2 target with 500 Internal Server Error",
+        "authType": "oauth",
+        "authData": {
+          "token_endpoint": "http://mock-oauth-server:8080/v1/oauth/error/500",
+          "grant_type": "client_credentials",
+          "client_id": "test_client_1",
+          "client_secret": "test_secret_1"
+        }
+      },
+      "oauth2-error-502": {
+        "enabled": true,
+        "endpoint": "http://mock-oauth-server:8080",
+        "description": "OAuth2 target with 502 Bad Gateway error",
+        "authType": "oauth",
+        "authData": {
+          "token_endpoint": "http://mock-oauth-server:8080/v1/oauth/error/502",
+          "grant_type": "client_credentials",
+          "client_id": "test_client_1",
+          "client_secret": "test_secret_1"
+        }
+      },
+      "oauth2-error-503": {
+        "enabled": true,
+        "endpoint": "http://mock-oauth-server:8080",
+        "description": "OAuth2 target with 503 Service Unavailable error",
+        "authType": "oauth",
+        "authData": {
+          "token_endpoint": "http://mock-oauth-server:8080/v1/oauth/error/503",
+          "grant_type": "client_credentials",
+          "client_id": "test_client_1",
+          "client_secret": "test_secret_1"
+        }
+      },
+      "oauth2-password-empty-username": {
+        "enabled": true,
+        "endpoint": "http://mock-oauth-server:8080",
+        "description": "OAuth2 password grant with empty username",
+        "authType": "oauth",
+        "authData": {
+          "token_endpoint": "http://mock-oauth-server:8080/v1/oauth/tokens-strict",
+          "grant_type": "password",
+          "client_id": "test_client_1",
+          "client_secret": "test_secret_1",
+          "username": "",
+          "password": "test_password"
+        }
+      },
+      "oauth2-password-empty-password": {
+        "enabled": true,
+        "endpoint": "http://mock-oauth-server:8080",
+        "description": "OAuth2 password grant with empty password",
+        "authType": "oauth",
+        "authData": {
+          "token_endpoint": "http://mock-oauth-server:8080/v1/oauth/tokens-strict",
+          "grant_type": "password",
+          "client_id": "test_client_1",
+          "client_secret": "test_secret_1",
+          "username": "test_user",
+          "password": ""
+        }
+      },
+      "oauth2-short-expiry": {
+        "enabled": true,
+        "endpoint": "http://mock-oauth-server:8080",
+        "description": "OAuth2 target with short token expiry (2 seconds)",
+        "authType": "oauth",
+        "authData": {
+          "token_endpoint": "http://mock-oauth-server:8080/v1/oauth/tokens-short-expiry?expires_in=2",
+          "grant_type": "client_credentials",
+          "client_id": "test_client_1",
+          "client_secret": "test_secret_1"
+        }
+      },
+      "oauth2-slow-token": {
+        "enabled": true,
+        "endpoint": "http://mock-oauth-server:8080",
+        "description": "OAuth2 target with slow token endpoint (5s delay)",
+        "authType": "oauth",
+        "authData": {
+          "token_endpoint": "http://mock-oauth-server:8080/v1/oauth/slow?delay=5",
+          "grant_type": "client_credentials",
+          "client_id": "test_client_1",
+          "client_secret": "test_secret_1"
+        }
+      },
+      "oauth2-unreachable": {
+        "enabled": true,
+        "endpoint": "http://mock-oauth-server:8080",
+        "description": "OAuth2 target with unreachable token endpoint",
+        "authType": "oauth",
+        "authData": {
+          "token_endpoint": "http://localhost:59999/v1/oauth/tokens",
+          "grant_type": "client_credentials",
+          "client_id": "test_client_1",
+          "client_secret": "test_secret_1"
+        }
+      },
+      "oauth2-custom-token-type": {
+        "enabled": true,
+        "endpoint": "http://mock-oauth-server:8080",
+        "description": "OAuth2 target with custom token type",
+        "authType": "oauth",
+        "authData": {
+          "token_endpoint": "http://mock-oauth-server:8080/v1/oauth/custom-response?token_type=MAC",
+          "grant_type": "client_credentials",
+          "client_id": "test_client_1",
+          "client_secret": "test_secret_1"
+        }
       }
     }
   },

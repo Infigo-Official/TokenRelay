@@ -32,7 +32,7 @@
     Prerequisites:
     - Windows Subsystem for Linux (WSL) installed
     - A Linux distribution installed in WSL
-    - .NET 8.0 SDK installed in WSL
+    - .NET 10.0 SDK installed in WSL
     - Docker Desktop with WSL integration enabled
 #>
 

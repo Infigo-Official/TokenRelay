@@ -220,18 +220,31 @@ public class ProxyService : IProxyService
         if (context.Request.ContentLength > 0 ||
             context.Request.Headers.TransferEncoding.Any(te => te == "chunked"))
         {
-            _logger.LogDebug("ProxyService: Request has body content - Length: {ContentLength}, Transfer-Encoding: {TransferEncoding}", 
-                context.Request.ContentLength?.ToString() ?? "chunked", 
+            _logger.LogDebug("ProxyService: Request has body content - Length: {ContentLength}, Transfer-Encoding: {TransferEncoding}",
+                context.Request.ContentLength?.ToString() ?? "chunked",
                 string.Join(", ", context.Request.Headers.TransferEncoding.Select(te => te ?? "unknown")));
 
-            var content = new StreamContent(context.Request.Body);
+            // Buffer the request body into memory for the outgoing HttpClient request.
+            // We use ByteArrayContent instead of StreamContent because ByteArrayContent
+            // sets Content-Length correctly based on actual buffered bytes.
+            using var memoryStream = new MemoryStream();
+            await context.Request.Body.CopyToAsync(memoryStream);
+            var content = new ByteArrayContent(memoryStream.ToArray());
 
-            // Copy content headers
+            _logger.LogDebug("ProxyService: Buffered {BufferedSize} bytes from request body", memoryStream.Length);
+
+            // Copy content headers (but let ByteArrayContent set Content-Length)
             var contentHeaderCount = 0;
             foreach (var header in context.Request.Headers)
             {
                 if (IsContentHeader(header.Key))
                 {
+                    // Skip Content-Length as ByteArrayContent will set it correctly based on actual content
+                    if (header.Key.Equals("Content-Length", StringComparison.OrdinalIgnoreCase))
+                    {
+                        continue;
+                    }
+
                     var headerValue = string.Join(", ", header.Value.ToArray());
                     _logger.LogDebug("ProxyService: Copying content header '{HeaderName}' with value '{HeaderValue}'",
                         SanitizeHeaderNameForLogging(header.Key), SanitizeHeaderValueForLogging(header.Key, headerValue));

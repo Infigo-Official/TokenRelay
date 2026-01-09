@@ -69,17 +69,17 @@ install_dotnet() {
         DOTNET_VERSION=$(dotnet --version)
         echo "Found .NET version: $DOTNET_VERSION"
         
-        # Check if version is 8.0 or higher
+        # Check if version is 10.0 or higher
         MAJOR_VERSION=$(echo $DOTNET_VERSION | cut -d. -f1)
-        if [ "$MAJOR_VERSION" -ge 8 ]; then
-            print_success ".NET 8.0+ is already installed"
+        if [ "$MAJOR_VERSION" -ge 10 ]; then
+            print_success ".NET 10.0+ is already installed"
             return 0
         else
-            print_warning "Found .NET $DOTNET_VERSION, but need 8.0+"
+            print_warning "Found .NET $DOTNET_VERSION, but need 10.0+"
         fi
     fi
-    
-    print_step "Installing .NET 8.0 runtime..."
+
+    print_step "Installing .NET 10.0 runtime..."
     
     case $DISTRO in
         ubuntu|debian)
@@ -90,7 +90,7 @@ install_dotnet() {
             
             # Update package list and install
             apt-get update
-            apt-get install -y aspnetcore-runtime-8.0
+            apt-get install -y aspnetcore-runtime-10.0
             ;;
         centos|rhel|fedora)
             # Add Microsoft package repository
@@ -98,14 +98,14 @@ install_dotnet() {
             
             # Install .NET
             if command -v dnf &> /dev/null; then
-                dnf install -y aspnetcore-runtime-8.0
+                dnf install -y aspnetcore-runtime-10.0
             else
-                yum install -y aspnetcore-runtime-8.0
+                yum install -y aspnetcore-runtime-10.0
             fi
             ;;
         *)
             print_error "Unsupported distribution: $DISTRO"
-            print_warning "Please install .NET 8.0 runtime manually from:"
+            print_warning "Please install .NET 10.0 runtime manually from:"
             print_warning "https://docs.microsoft.com/en-us/dotnet/core/install/linux"
             exit 1
             ;;
@@ -284,7 +284,7 @@ main() {
     
     echo
     echo "This script will:"
-    echo "1. Install .NET 8.0 runtime (if needed)"
+    echo "1. Install .NET 10.0 runtime (if needed)"
     echo "2. Create service user ($SERVICE_USER)"
     echo "3. Create installation directory ($INSTALL_DIR)"
     echo "4. Copy application files"

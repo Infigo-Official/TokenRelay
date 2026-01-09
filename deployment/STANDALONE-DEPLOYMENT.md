@@ -25,7 +25,7 @@ TokenRelay is a secure HTTP proxy service that provides credential management an
 ```powershell
 # Check .NET installation
 dotnet --version
-# Should show 8.0.x or later
+# Should show 10.0.x or later
 
 # Check PowerShell version
 $PSVersionTable.PSVersion
@@ -36,7 +36,7 @@ $PSVersionTable.PSVersion
 ```bash
 # Check .NET installation
 dotnet --version
-# Should show 8.0.x or later
+# Should show 10.0.x or later
 
 # Check if systemd is available (Linux)
 systemctl --version
@@ -72,12 +72,12 @@ systemctl --version
 | Deployment Type | Requirements |
 |----------------|--------------|
 | **Self-Contained** | ✅ No additional requirements |
-| **Framework-Dependent** | .NET 8.0 Runtime or later |
+| **Framework-Dependent** | .NET 10.0 Runtime or later |
 
 **Download .NET:**
-- **Windows**: https://dotnet.microsoft.com/download/dotnet/8.0
+- **Windows**: https://dotnet.microsoft.com/download/dotnet/10.0
 - **Linux**: Use your distribution's package manager or download from Microsoft
-- **macOS**: https://dotnet.microsoft.com/download/dotnet/8.0
+- **macOS**: https://dotnet.microsoft.com/download/dotnet/10.0
 
 ### System Requirements
 
@@ -359,7 +359,7 @@ Update `appsettings.Production.json`:
 ### Prerequisites
 
 1. Install IIS with ASP.NET Core Hosting Bundle
-2. Install .NET 8.0 Hosting Bundle
+2. Install .NET 10.0 Hosting Bundle
 
 ### IIS Configuration
 
