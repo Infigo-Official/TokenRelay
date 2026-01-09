@@ -1,0 +1,59 @@
+{
+  "_comment": "CHAIN MODE DOWNSTREAM CONFIGURATION - Direct mode with actual targets",
+  "proxy": {
+    "auth": {
+      "tokens": ["test-token-for-chain-downstream"],
+      "encryptionKey": "integration-test-32-char-key-ok"
+    },
+    "mode": "direct",
+    "timeoutSeconds": 30,
+    "logBufferMinutes": 10,
+    "permissions": {
+      "allowTargetConfigOverride": false,
+      "allowLogRetrieval": true,
+      "allowLogLevelAdjustment": true
+    },
+    "targets": {
+      "oauth2-password-grant": {
+        "enabled": true,
+        "endpoint": "http://mock-oauth-server:8080",
+        "description": "OAuth2 Password Grant Test Target",
+        "authType": "oauth",
+        "authData": {
+          "token_endpoint": "http://mock-oauth-server:8080/v1/oauth/tokens",
+          "grant_type": "password",
+          "client_id": "test_client_1",
+          "client_secret": "test_secret_1",
+          "username": "test_user",
+          "password": "test_password",
+          "scope": "read write"
+        },
+        "healthCheck": {
+          "url": "http://mock-oauth-server:8080/health",
+          "enabled": true,
+          "type": "HttpGet"
+        }
+      },
+      "no-auth-target": {
+        "enabled": true,
+        "endpoint": "http://mock-oauth-server:8080",
+        "description": "Target without authentication",
+        "authType": "none"
+      },
+      "static-auth-target": {
+        "enabled": true,
+        "endpoint": "http://mock-oauth-server:8080",
+        "description": "Static auth target with custom headers",
+        "authType": "static",
+        "headers": {
+          "Authorization": "Bearer chain-static-token-12345",
+          "X-Chain-Header": "chain-value"
+        }
+      }
+    }
+  },
+  "logging": {
+    "level": "Debug",
+    "destinations": ["console"]
+  }
+}

@@ -1,0 +1,29 @@
+{
+  "_comment": "CHAIN MODE UPSTREAM CONFIGURATION - Forwards all requests to downstream proxy",
+  "proxy": {
+    "auth": {
+      "tokens": ["test-token-for-chain-integration"],
+      "encryptionKey": "integration-test-32-char-key-ok"
+    },
+    "mode": "chain",
+    "timeoutSeconds": 30,
+    "logBufferMinutes": 10,
+    "permissions": {
+      "allowTargetConfigOverride": false,
+      "allowLogRetrieval": true,
+      "allowLogLevelAdjustment": true
+    },
+    "chain": {
+      "targetProxy": {
+        "endpoint": "http://tokenrelay-downstream:8080",
+        "token": "test-token-for-chain-downstream",
+        "authType": "none"
+      }
+    },
+    "targets": {}
+  },
+  "logging": {
+    "level": "Debug",
+    "destinations": ["console"]
+  }
+}

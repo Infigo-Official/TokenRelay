@@ -1,0 +1,75 @@
+# Chain Mode Integration Test Configuration
+# Tests proxy-to-proxy forwarding: Client -> Upstream -> Downstream -> Mock Server
+#
+# Usage:
+#   docker-compose -f docker-compose.chain-integration.yml up -d --build
+#   docker-compose -f docker-compose.chain-integration.yml down
+
+services:
+  # Mock OAuth2 Server (same as OAuth2 tests)
+  mock-oauth-server:
+    build:
+      context: ../../docker/mock-oauth-server
+      dockerfile: Dockerfile
+    container_name: chain-mock-oauth-server
+    ports:
+      - "${CHAIN_SERVER_PORT:-8195}:8080"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    networks:
+      - chain-network
+
+  # Downstream TokenRelay (direct mode - talks to mock server)
+  tokenrelay-downstream:
+    build:
+      context: ../..
+      dockerfile: docker/Dockerfile
+    container_name: chain-tokenrelay-downstream
+    ports:
+      - "${CHAIN_DOWNSTREAM_PORT:-5197}:8080"
+    volumes:
+      - ./tokenrelay-chain-downstream.json:/app/tokenrelay.json:ro
+    environment:
+      - ASPNETCORE_URLS=http://+:8080
+      - ASPNETCORE_ENVIRONMENT=Development
+    depends_on:
+      mock-oauth-server:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    networks:
+      - chain-network
+
+  # Upstream TokenRelay (chain mode - forwards to downstream)
+  tokenrelay-upstream:
+    build:
+      context: ../..
+      dockerfile: docker/Dockerfile
+    container_name: chain-tokenrelay-upstream
+    ports:
+      - "${CHAIN_UPSTREAM_PORT:-5196}:8080"
+    volumes:
+      - ./tokenrelay-chain-upstream.json:/app/tokenrelay.json:ro
+    environment:
+      - ASPNETCORE_URLS=http://+:8080
+      - ASPNETCORE_ENVIRONMENT=Development
+    depends_on:
+      tokenrelay-downstream:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    networks:
+      - chain-network
+
+networks:
+  chain-network:
+    driver: bridge
