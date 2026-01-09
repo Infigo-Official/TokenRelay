@@ -1,0 +1,86 @@
+{
+  "proxy": {
+    "auth": {
+      "tokens": ["test-token-for-oauth1-integration"],
+      "encryptionKey": "integration-test-32-char-key-ok"
+    },
+    "mode": "direct",
+    "timeoutSeconds": 30,
+    "logBufferMinutes": 10,
+    "permissions": {
+      "allowTargetConfigOverride": false,
+      "allowLogRetrieval": true,
+      "allowLogLevelAdjustment": true
+    },
+    "targets": {
+      "oauth1-test": {
+        "enabled": true,
+        "endpoint": "http://mock-oauth1-server:8081",
+        "description": "OAuth1 Integration Test Target (HMAC-SHA256)",
+        "authType": "oauth1",
+        "authData": {
+          "consumer_key": "test-consumer-key",
+          "consumer_secret": "test-consumer-secret",
+          "token_id": "test-token-id",
+          "token_secret": "test-token-secret",
+          "realm": "test-realm",
+          "signature_method": "HMAC-SHA256"
+        },
+        "healthCheck": {
+          "url": "http://mock-oauth1-server:8081/health",
+          "enabled": true,
+          "type": "HttpGet"
+        }
+      },
+      "oauth1-sha1-test": {
+        "enabled": true,
+        "endpoint": "http://mock-oauth1-server:8081",
+        "description": "OAuth1 Integration Test Target (HMAC-SHA1)",
+        "authType": "oauth1",
+        "authData": {
+          "consumer_key": "test-consumer-key",
+          "consumer_secret": "test-consumer-secret",
+          "token_id": "test-token-id",
+          "token_secret": "test-token-secret",
+          "realm": "test-realm",
+          "signature_method": "HMAC-SHA1"
+        }
+      },
+      "oauth1-with-query-params": {
+        "enabled": true,
+        "endpoint": "http://mock-oauth1-server:8081",
+        "description": "OAuth1 Test Target with preconfigured query params",
+        "authType": "oauth1",
+        "authData": {
+          "consumer_key": "test-consumer-key",
+          "consumer_secret": "test-consumer-secret",
+          "token_id": "test-token-id",
+          "token_secret": "test-token-secret",
+          "realm": "test-realm",
+          "signature_method": "HMAC-SHA256"
+        },
+        "queryParams": {
+          "script": "customscript_test",
+          "deploy": "customdeploy_1"
+        }
+      },
+      "oauth1-no-realm": {
+        "enabled": true,
+        "endpoint": "http://mock-oauth1-server:8081",
+        "description": "OAuth1 Test with matching realm",
+        "authType": "oauth1",
+        "authData": {
+          "consumer_key": "test-consumer-key",
+          "consumer_secret": "test-consumer-secret",
+          "token_id": "test-token-id",
+          "token_secret": "test-token-secret",
+          "realm": "test-realm"
+        }
+      }
+    }
+  },
+  "logging": {
+    "level": "Debug",
+    "destinations": ["console"]
+  }
+}

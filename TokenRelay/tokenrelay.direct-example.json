@@ -76,6 +76,51 @@
           "client_id": "client-id",
           "client_secret": "client-secret"
         }
+      },
+      "netsuite-restlet": {
+        "enabled": true,
+        "endpoint": "https://1234567.restlets.api.netsuite.com/app/site/hosting/restlet.nl",
+        "description": "NetSuite RESTlet with OAuth1 authentication and queryParams for script/deploy routing",
+        "authType": "oauth1",
+        "authData": {
+          "consumer_key": "your-consumer-key",
+          "consumer_secret": "your-consumer-secret",
+          "token_id": "your-token-id",
+          "token_secret": "your-token-secret",
+          "realm": "1234567_SB1",
+          "signature_method": "HMAC-SHA256"
+        },
+        "queryParams": {
+          "script": "customscript_your_restlet",
+          "deploy": "customdeploy_your_restlet"
+        },
+        "healthCheck": {
+          "url": "https://1234567.restlets.api.netsuite.com/app/site/hosting/restlet.nl",
+          "enabled": true,
+          "type": "HttpGet",
+          "expectedStatusCodes": [200, 401, 403]
+        },
+        "headers": {
+          "Content-Type": "application/json",
+          "Accept": "application/json"
+        }
+      },
+      "generic-oauth1-api": {
+        "enabled": true,
+        "endpoint": "https://api.twitter.com/2/tweets",
+        "description": "Generic OAuth1 API example (Twitter-like). OAuth1 works with any OAuth1 API.",
+        "authType": "oauth1",
+        "authData": {
+          "consumer_key": "your-api-key",
+          "consumer_secret": "your-api-secret",
+          "token_id": "your-access-token",
+          "token_secret": "your-access-token-secret",
+          "realm": "twitter.com",
+          "signature_method": "HMAC-SHA1"
+        },
+        "headers": {
+          "Content-Type": "application/json"
+        }
       }
     }
   },

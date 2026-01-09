@@ -45,7 +45,15 @@ public static class SanitizationHelper
         "credential",
         "credentials",
         "private_key",
-        "privatekey"
+        "privatekey",
+        // OAuth1 specific fields
+        "consumer_key",
+        "consumer_secret",
+        "token_id",
+        "token_secret",
+        "oauth_signature",
+        "oauth_consumer_key",
+        "oauth_token"
     };
 
     /// <summary>

@@ -1,0 +1,68 @@
+# OAuth1 Integration Test Docker Compose
+# Usage:
+#   docker-compose -f docker-compose.oauth1-integration.yml up -d --build
+#   dotnet test --filter "Category=OAuth1"
+#   docker-compose -f docker-compose.oauth1-integration.yml down -v
+
+services:
+  # Mock OAuth1 Server - validates OAuth1 signatures
+  mock-oauth1-server:
+    build:
+      context: ../../docker/mock-oauth1-server
+      dockerfile: Dockerfile
+    container_name: oauth1-test-server
+    ports:
+      - "${OAUTH1_SERVER_PORT:-8191}:8081"
+    environment:
+      - OAUTH1_CONSUMER_KEY=test-consumer-key
+      - OAUTH1_CONSUMER_SECRET=test-consumer-secret
+      - OAUTH1_TOKEN_ID=test-token-id
+      - OAUTH1_TOKEN_SECRET=test-token-secret
+      - OAUTH1_REALM=test-realm
+      - OAUTH1_SIGNATURE_METHOD=HMAC-SHA256,HMAC-SHA1
+      - OAUTH1_TIMESTAMP_TOLERANCE=300
+      - OAUTH1_DEBUG=true
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8081/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+    restart: unless-stopped
+    networks:
+      - oauth1-test-network
+
+  # TokenRelay Proxy - configured with OAuth1 targets
+  tokenrelay:
+    build:
+      context: ../..
+      dockerfile: docker/Dockerfile
+      args:
+        VERSION: 0.0.1
+    container_name: tokenrelay-oauth1-test
+    ports:
+      - "${TOKENRELAY_PORT:-5193}:80"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=http://+:80
+      - ConfigPath=/app/tokenrelay.json
+      - TOKENRELAY_CONFIG_MODE=file
+    volumes:
+      - ./tokenrelay-oauth1-test.json:/app/tokenrelay.json:ro
+    depends_on:
+      mock-oauth1-server:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+    networks:
+      - oauth1-test-network
+
+networks:
+  oauth1-test-network:
+    name: tokenrelay-oauth1-test-network
+    driver: bridge

@@ -19,6 +19,7 @@ public class ProxyServiceOAuthTests
     {
         // Arrange
         var mockOAuthService = new Mock<IOAuthService>();
+        var mockOAuth1Service = new Mock<IOAuth1Service>();
         var mockConfigService = new Mock<IConfigurationService>();
         var mockHttpClientService = new Mock<IHttpClientService>();
         var mockLogger = new Mock<ILogger<ProxyService>>();
@@ -44,12 +45,13 @@ public class ProxyServiceOAuthTests
         // Create a mock service provider
         var mockServiceProvider = new Mock<IServiceProvider>();
 
-        // Act - Verify service can be constructed with IOAuthService
+        // Act - Verify service can be constructed with IOAuthService and IOAuth1Service
         var proxyService = new ProxyService(
             mockHttpClientService.Object,
             mockConfigService.Object,
             mockLogger.Object,
             mockOAuthService.Object,
+            mockOAuth1Service.Object,
             mockServiceProvider.Object);
 
         // Assert - Service created successfully with OAuth support

@@ -18,6 +18,7 @@ public class ProxyService : IProxyService
     private readonly IConfigurationService _configService;
     private readonly ILogger<ProxyService> _logger;
     private readonly IOAuthService _oauthService;
+    private readonly IOAuth1Service _oauth1Service;
     private readonly IServiceProvider _serviceProvider;
 
     public ProxyService(
@@ -25,12 +26,14 @@ public class ProxyService : IProxyService
         IConfigurationService configService,
         ILogger<ProxyService> logger,
         IOAuthService oauthService,
+        IOAuth1Service oauth1Service,
         IServiceProvider serviceProvider)
     {
         _httpClientService = httpClientService;
         _configService = configService;
         _logger = logger;
         _oauthService = oauthService;
+        _oauth1Service = oauth1Service;
         _serviceProvider = serviceProvider;
     }
 
@@ -78,9 +81,16 @@ public class ProxyService : IProxyService
 
         // Build target URL
         var targetUrl = CombineUrls(target.Endpoint, remainingPath);
-        if (!string.IsNullOrEmpty(context.Request.QueryString.Value))
+
+        // Merge configured query params with request query params
+        // Configured params are added first, request params can override them
+        if (QueryParamsHelper.HasQueryParams(target.QueryParams) || !string.IsNullOrEmpty(context.Request.QueryString.Value))
         {
-            targetUrl += context.Request.QueryString.Value;
+            targetUrl = QueryParamsHelper.MergeQueryParams(
+                targetUrl,
+                target.QueryParams,
+                context.Request.QueryString.Value);
+            _logger.LogDebug("ProxyService: Merged query parameters into target URL");
         }
 
         _logger.LogDebug("ProxyService: Final target URL constructed: {TargetUrl}", SanitizeUrlForLogging(targetUrl));
@@ -158,6 +168,46 @@ public class ProxyService : IProxyService
                 _logger.LogError(ex, "ProxyService: Failed to acquire OAuth token for target '{TargetName}'", SanitizeForLogging(targetName));
                 throw new HttpRequestException(
                     $"Failed to acquire OAuth token for target '{targetName}': {ex.Message}",
+                    ex);
+            }
+        }
+        // Add OAuth1 Authorization header if target uses OAuth1 (e.g., NetSuite, Twitter, etc.)
+        else if (target.AuthType.Equals("oauth1", StringComparison.OrdinalIgnoreCase))
+        {
+            try
+            {
+                _logger.LogDebug("ProxyService: Target '{TargetName}' uses OAuth1, generating signature",
+                    SanitizeForLogging(targetName));
+
+                var oauth1Stopwatch = ValueStopwatch.StartNew();
+
+                // Generate OAuth1 Authorization header (URL already has merged query params)
+                var authHeader = await _oauth1Service.GenerateAuthorizationHeaderAsync(
+                    targetName,
+                    target,
+                    forwardedRequest.Method,
+                    targetUrl,
+                    null,
+                    context.RequestAborted);
+
+                forwardedRequest.Headers.TryAddWithoutValidation("Authorization", authHeader);
+
+                // Add OAuth1 attributes to New Relic transaction for visibility
+                transaction?.AddCustomAttribute("tokenrelay.oauth1_used", true);
+                transaction?.AddCustomAttribute("tokenrelay.oauth1_target", targetName);
+                transaction?.AddCustomAttribute("tokenrelay.oauth1_generate_time_ms",
+                    oauth1Stopwatch.GetElapsedMilliseconds());
+
+                _logger.LogDebug("ProxyService: Added OAuth1 Authorization header for target '{TargetName}' in {ElapsedMs}ms",
+                    SanitizeForLogging(targetName), oauth1Stopwatch.GetElapsedMilliseconds());
+            }
+            catch (Exception ex)
+            {
+                transaction?.AddCustomAttribute("tokenrelay.oauth1_error", true);
+                _logger.LogError(ex, "ProxyService: Failed to generate OAuth1 signature for target '{TargetName}'",
+                    SanitizeForLogging(targetName));
+                throw new HttpRequestException(
+                    $"Failed to generate OAuth1 signature for target '{targetName}': {ex.Message}",
                     ex);
             }
         }
