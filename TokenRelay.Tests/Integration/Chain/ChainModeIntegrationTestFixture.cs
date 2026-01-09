@@ -107,6 +107,17 @@ public class ChainModeIntegrationTestFixture : IAsyncLifetime
                     "Ensure you're running tests from the correct directory.");
             }
 
+            // Clean up any existing containers from previous runs (may have been interrupted)
+            Console.WriteLine("Cleaning up any existing containers...");
+            try
+            {
+                await RunDockerComposeAsync("down", "-v");
+            }
+            catch
+            {
+                // Ignore errors from down - containers may not exist
+            }
+
             // Start containers with build
             await RunDockerComposeAsync("up", "-d", "--build");
             _containersStarted = true;
