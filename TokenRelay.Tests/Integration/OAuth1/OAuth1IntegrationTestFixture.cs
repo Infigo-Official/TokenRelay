@@ -53,9 +53,10 @@ public class OAuth1IntegrationTestFixture : IAsyncLifetime
 
         // Allow port overrides for CI environments
         var tokenRelayPort = Environment.GetEnvironmentVariable("OAUTH1_TOKENRELAY_PORT") ?? "5193";
+        // Use 127.0.0.1 instead of localhost to avoid IPv6 resolution issues on Windows
         var oauth1ServerPort = Environment.GetEnvironmentVariable("OAUTH1_SERVER_PORT") ?? "8191";
-        TokenRelayBaseUrl = $"http://localhost:{tokenRelayPort}";
-        OAuth1ServerBaseUrl = $"http://localhost:{oauth1ServerPort}";
+        TokenRelayBaseUrl = $"http://127.0.0.1:{tokenRelayPort}";
+        OAuth1ServerBaseUrl = $"http://127.0.0.1:{oauth1ServerPort}";
 
         // Path relative to test execution directory
         // When running from TokenRelay.Tests/bin/Debug/net8.0, we need to go up to the repo root

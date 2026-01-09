@@ -70,9 +70,10 @@ public class ChainModeIntegrationTestFixture : IAsyncLifetime
         var downstreamPort = Environment.GetEnvironmentVariable("CHAIN_DOWNSTREAM_PORT") ?? "5197";
         var serverPort = Environment.GetEnvironmentVariable("CHAIN_SERVER_PORT") ?? "8195";
 
-        UpstreamBaseUrl = $"http://localhost:{upstreamPort}";
-        DownstreamBaseUrl = $"http://localhost:{downstreamPort}";
-        MockServerBaseUrl = $"http://localhost:{serverPort}";
+        // Use 127.0.0.1 instead of localhost to avoid IPv6 resolution issues on Windows
+        UpstreamBaseUrl = $"http://127.0.0.1:{upstreamPort}";
+        DownstreamBaseUrl = $"http://127.0.0.1:{downstreamPort}";
+        MockServerBaseUrl = $"http://127.0.0.1:{serverPort}";
 
         // Path relative to test execution directory
         var baseDir = AppContext.BaseDirectory;
