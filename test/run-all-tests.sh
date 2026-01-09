@@ -18,7 +18,7 @@
 #   3 - Prerequisites missing
 #
 # Prerequisites:
-#   - .NET 8.0 SDK
+#   - .NET 10.0 SDK
 #   - Docker and docker-compose
 #   - Ports 5193, 5194, 8191, 8192 available
 #######################################################################

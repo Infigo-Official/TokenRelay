@@ -6,8 +6,8 @@ echo.
 REM Check if dotnet is available
 dotnet --version >nul 2>&1
 if %errorlevel% neq 0 (
-    echo Error: .NET SDK not found. Please install .NET 8.0 SDK or later.
-    echo Download from: https://dotnet.microsoft.com/download/dotnet/8.0
+    echo Error: .NET SDK not found. Please install .NET 10.0 SDK or later.
+    echo Download from: https://dotnet.microsoft.com/download/dotnet/10.0
     pause
     exit /b 1
 )
