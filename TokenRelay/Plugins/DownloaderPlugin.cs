@@ -42,6 +42,16 @@ public class DownloaderPlugin : ITokenRelayPlugin
     {
         try
         {
+            if (_httpClient == null)
+            {
+                return new Dictionary<string, object>
+                {
+                    ["success"] = false,
+                    ["error"] = "HttpClient not configured for Downloader plugin",
+                    ["timestamp"] = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ")
+                };
+            }
+
             if (!parameters.TryGetValue("url", out var urlObj) || urlObj is not string url || string.IsNullOrWhiteSpace(url))
             {
                 return new Dictionary<string, object>
@@ -82,21 +92,12 @@ public class DownloaderPlugin : ITokenRelayPlugin
                 };
             }
 
-            if (_httpClient == null)
-            {
-                return new Dictionary<string, object>
-                {
-                    ["success"] = false,
-                    ["error"] = "HttpClient not configured for Downloader plugin",
-                    ["timestamp"] = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ")
-                };
-            }
-
             using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(_timeoutSeconds));
             var response = await _httpClient.GetAsync(uri, HttpCompletionOption.ResponseHeadersRead, cts.Token);
 
             if (!response.IsSuccessStatusCode)
             {
+                response.Dispose();
                 return new Dictionary<string, object>
                 {
                     ["success"] = false,
@@ -108,7 +109,7 @@ public class DownloaderPlugin : ITokenRelayPlugin
 
             var contentType = response.Content.Headers.ContentType?.ToString() ?? "application/octet-stream";
             var contentLength = response.Content.Headers.ContentLength;
-            var contentDisposition = response.Content.Headers.ContentDisposition?.FileName?.Trim('"');
+            var contentDisposition = response.Content.Headers.ContentDisposition?.FileName;
 
             var stream = await response.Content.ReadAsStreamAsync(cts.Token);
 

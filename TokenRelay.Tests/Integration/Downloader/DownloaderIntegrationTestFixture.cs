@@ -71,13 +71,13 @@ public class DownloaderIntegrationTestFixture : IAsyncLifetime
         // Path relative to test execution directory
         var baseDir = AppContext.BaseDirectory;
         _composeFilePath = Path.GetFullPath(
-            Path.Combine(baseDir, "../../../../test/docker/docker-compose.fileproxy-integration.yml"));
+            Path.Combine(baseDir, "../../../../test/docker/docker-compose.downloader-integration.yml"));
 
         // Alternative: if running from solution root
         if (!File.Exists(_composeFilePath))
         {
             _composeFilePath = Path.GetFullPath(
-                Path.Combine(baseDir, "../../../../../test/docker/docker-compose.fileproxy-integration.yml"));
+                Path.Combine(baseDir, "../../../../../test/docker/docker-compose.downloader-integration.yml"));
         }
     }
 

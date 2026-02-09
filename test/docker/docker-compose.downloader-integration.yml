@@ -2,8 +2,8 @@
 # Tests file downloading: Client -> TokenRelay (Downloader plugin) -> Mock File Server
 #
 # Usage:
-#   docker-compose -f docker-compose.fileproxy-integration.yml up -d --build
-#   docker-compose -f docker-compose.fileproxy-integration.yml down
+#   docker-compose -f docker-compose.downloader-integration.yml up -d --build
+#   docker-compose -f docker-compose.downloader-integration.yml down
 
 services:
   # Mock server (serves files for Downloader to fetch)
@@ -31,7 +31,7 @@ services:
     ports:
       - "${DOWNLOADER_TOKENRELAY_PORT:-5198}:8080"
     volumes:
-      - ./tokenrelay-fileproxy-test.json:/app/tokenrelay.json:ro
+      - ./tokenrelay-downloader-test.json:/app/tokenrelay.json:ro
     environment:
       - ASPNETCORE_URLS=http://+:8080
       - ASPNETCORE_ENVIRONMENT=Development

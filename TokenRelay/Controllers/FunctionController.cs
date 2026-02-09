@@ -31,8 +31,12 @@ public class FunctionController : ControllerBase
     {
         var clientIP = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
 
+        // Sanitize route parameters to prevent log injection via URL-encoded newlines
+        var sanitizedPlugin = plugin?.Replace("\r", string.Empty).Replace("\n", string.Empty);
+        var sanitizedFunction = function?.Replace("\r", string.Empty).Replace("\n", string.Empty);
+
         _logger.LogInformation("FunctionController: Received request to execute function '{Function}' in plugin '{Plugin}' from {ClientIP}",
-            function, plugin, clientIP);
+            sanitizedFunction, sanitizedPlugin, clientIP);
 
         Stream? fileStream = null;
         bool responseStreamReturned = false;
@@ -45,12 +49,12 @@ public class FunctionController : ControllerBase
             }
             if (string.IsNullOrEmpty(function))
             {
-                _logger.LogWarning("FunctionController: Function name is required for plugin '{Plugin}' from {ClientIP}", plugin, clientIP);
+                _logger.LogWarning("FunctionController: Function name is required for plugin '{Plugin}' from {ClientIP}", sanitizedPlugin, clientIP);
                 return BadRequest("Function name is required");
             }
 
             _logger.LogDebug("FunctionController: Processing parameters for '{Plugin}.{Function}' from {ClientIP}",
-                plugin, function, clientIP);
+                sanitizedPlugin, sanitizedFunction, clientIP);
 
             var parameters = new Dictionary<string, object>();
 
@@ -70,7 +74,7 @@ public class FunctionController : ControllerBase
             // Handle file upload and form data
             if (Request.HasFormContentType)
             {
-                _logger.LogDebug("FunctionController: Processing form data for '{Plugin}.{Function}'", plugin, function);
+                _logger.LogDebug("FunctionController: Processing form data for '{Plugin}.{Function}'", sanitizedPlugin, sanitizedFunction);
                 var form = await Request.ReadFormAsync();
 
                 // Add form fields as parameters
@@ -137,7 +141,7 @@ public class FunctionController : ControllerBase
             }
             else if (Request.ContentType?.StartsWith("application/json") == true)
             {
-                _logger.LogDebug("FunctionController: Processing JSON body for '{Plugin}.{Function}'", plugin, function);
+                _logger.LogDebug("FunctionController: Processing JSON body for '{Plugin}.{Function}'", sanitizedPlugin, sanitizedFunction);
 
                 // Handle JSON body
                 using var body = await JsonDocument.ParseAsync(Request.Body);
@@ -167,14 +171,14 @@ public class FunctionController : ControllerBase
             }
 
             _logger.LogInformation("FunctionController: Executing function '{Function}' on plugin '{Plugin}' with {ParameterCount} parameters from {ClientIP}",
-                function, plugin, parameters.Count, clientIP);
+                sanitizedFunction, sanitizedPlugin, parameters.Count, clientIP);
 
             var stopwatch = System.Diagnostics.Stopwatch.StartNew();
             var result = await _pluginService.ExecutePluginFunctionAsync(plugin, function, parameters);
             stopwatch.Stop();
 
             _logger.LogInformation("FunctionController: Function '{Plugin}.{Function}' executed successfully in {ElapsedMs}ms from {ClientIP}",
-                plugin, function, stopwatch.ElapsedMilliseconds, clientIP);
+                sanitizedPlugin, sanitizedFunction, stopwatch.ElapsedMilliseconds, clientIP);
 
             // Check if the plugin returned a response stream (e.g. file proxy)
             if (result.TryGetValue("__responseStream", out var streamObj) && streamObj is Stream responseStream)
@@ -185,7 +189,7 @@ public class FunctionController : ControllerBase
                     ? fn : null;
 
                 _logger.LogInformation("FunctionController: Returning stream response for '{Plugin}.{Function}' with ContentType={ContentType} from {ClientIP}",
-                    plugin, function, contentType, clientIP);
+                    sanitizedPlugin, sanitizedFunction, contentType, clientIP);
 
                 // Register the HttpResponseMessage for disposal after the response completes
                 if (result.TryGetValue("__httpResponse", out var httpRespObj) && httpRespObj is IDisposable httpResp)
@@ -202,13 +206,13 @@ public class FunctionController : ControllerBase
         catch (ArgumentException ex)
         {
             _logger.LogWarning(ex, "FunctionController: Invalid plugin or function request for '{Plugin}.{Function}' from {ClientIP}",
-                plugin, function, clientIP);
+                sanitizedPlugin, sanitizedFunction, clientIP);
             return NotFound(ex.Message);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "FunctionController: Error executing plugin function '{Plugin}.{Function}' from {ClientIP}",
-                plugin, function, clientIP);
+                sanitizedPlugin, sanitizedFunction, clientIP);
             return StatusCode(500, new
             {
                 success = false,
@@ -221,7 +225,7 @@ public class FunctionController : ControllerBase
             // Ensure file stream is properly disposed (but not response streams - ASP.NET manages those)
             if (fileStream != null && !responseStreamReturned)
             {
-                _logger.LogDebug("FunctionController: Disposing file stream for '{Plugin}.{Function}'", plugin, function);
+                _logger.LogDebug("FunctionController: Disposing file stream for '{Plugin}.{Function}'", sanitizedPlugin, sanitizedFunction);
                 fileStream.Dispose();
             }
         }

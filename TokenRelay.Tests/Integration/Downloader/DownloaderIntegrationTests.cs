@@ -33,7 +33,7 @@ namespace TokenRelay.Tests.Integration.Downloader;
 ///
 /// Manual container management:
 ///   Set DOWNLOADER_SKIP_DOCKER=true environment variable
-///   Start containers: docker-compose -f test/docker/docker-compose.fileproxy-integration.yml up -d --build
+///   Start containers: docker-compose -f test/docker/docker-compose.downloader-integration.yml up -d --build
 /// </summary>
 [Collection("Downloader Integration Tests")]
 [Trait("Category", "Integration")]
