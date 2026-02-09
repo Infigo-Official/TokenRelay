@@ -70,6 +70,18 @@ builder.Services.AddHttpClient(HttpClientService.IgnoreCertsClientName)
     .AddHttpMessageHandler<HttpLoggingHandler>()
     .SetHandlerLifetime(Timeout.InfiniteTimeSpan);
 
+// Configure HttpClient for Downloader plugin (no logging handler to avoid logging full file content)
+builder.Services.AddHttpClient("DownloaderClient")
+    .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler
+    {
+        PooledConnectionLifetime = TimeSpan.FromMinutes(5),
+        PooledConnectionIdleTimeout = TimeSpan.FromMinutes(2),
+        MaxConnectionsPerServer = 50,
+        AllowAutoRedirect = true,
+        MaxAutomaticRedirections = 10
+    })
+    .SetHandlerLifetime(Timeout.InfiniteTimeSpan);
+
 // Also add the default HttpClient factory for backward compatibility
 builder.Services.AddHttpClient();
 

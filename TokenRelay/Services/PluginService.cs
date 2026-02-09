@@ -15,12 +15,14 @@ public class PluginService : IPluginService
 {
     private readonly ILogger<PluginService> _logger;
     private readonly IConfigurationService _configService;
+    private readonly IHttpClientFactory _httpClientFactory;
     private readonly Dictionary<string, ITokenRelayPlugin> _loadedPlugins = new();
 
-    public PluginService(ILogger<PluginService> logger, IConfigurationService configService)
+    public PluginService(ILogger<PluginService> logger, IConfigurationService configService, IHttpClientFactory httpClientFactory)
     {
         _logger = logger;
         _configService = configService;
+        _httpClientFactory = httpClientFactory;
     }
 
     public async Task<Dictionary<string, object>> ExecutePluginFunctionAsync(
@@ -105,7 +107,31 @@ public class PluginService : IPluginService
                 _logger.LogDebug("PluginService: No file storage plugin configuration found");
             }
 
-            _logger.LogInformation("PluginService: Plugin loading completed - {PluginCount} plugins loaded", 
+            // Load downloader plugin if configured
+            if (config.Plugins.TryGetValue("downloader", out var downloaderConfig))
+            {
+                if (downloaderConfig.Enabled)
+                {
+                    _logger.LogDebug("PluginService: Loading downloader plugin");
+                    var downloaderPlugin = new DownloaderPlugin();
+                    downloaderPlugin.Configure(downloaderConfig.Settings);
+                    downloaderPlugin.SetHttpClient(_httpClientFactory.CreateClient("DownloaderClient"));
+                    _loadedPlugins[downloaderPlugin.Name] = downloaderPlugin;
+
+                    _logger.LogInformation("PluginService: Loaded plugin '{PluginName}' v{Version}",
+                        downloaderPlugin.Name, downloaderPlugin.Version);
+                }
+                else
+                {
+                    _logger.LogDebug("PluginService: Downloader plugin is disabled in configuration");
+                }
+            }
+            else
+            {
+                _logger.LogDebug("PluginService: No downloader plugin configuration found");
+            }
+
+            _logger.LogInformation("PluginService: Plugin loading completed - {PluginCount} plugins loaded",
                 _loadedPlugins.Count);
         }
         catch (Exception ex)

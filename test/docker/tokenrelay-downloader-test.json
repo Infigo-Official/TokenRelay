@@ -1,0 +1,37 @@
+{
+  "_comment": "DOWNLOADER PLUGIN TEST CONFIGURATION - TokenRelay with Downloader plugin enabled",
+  "proxy": {
+    "auth": {
+      "tokens": ["test-token-for-downloader-integration"],
+      "encryptionKey": "integration-test-32-char-key-ok"
+    },
+    "mode": "direct",
+    "timeoutSeconds": 30,
+    "logBufferMinutes": 10,
+    "permissions": {
+      "allowTargetConfigOverride": false,
+      "allowLogRetrieval": true,
+      "allowLogLevelAdjustment": true
+    },
+    "targets": {
+      "no-auth-target": {
+        "enabled": true,
+        "endpoint": "http://mock-file-server:8080",
+        "description": "Target without authentication for comparison tests",
+        "authType": "none"
+      }
+    }
+  },
+  "plugins": {
+    "downloader": {
+      "enabled": true,
+      "settings": {
+        "timeoutSeconds": "30"
+      }
+    }
+  },
+  "logging": {
+    "level": "Debug",
+    "destinations": ["console"]
+  }
+}

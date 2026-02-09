@@ -1,0 +1,51 @@
+# Downloader Plugin Integration Test Configuration
+# Tests file downloading: Client -> TokenRelay (Downloader plugin) -> Mock File Server
+#
+# Usage:
+#   docker-compose -f docker-compose.downloader-integration.yml up -d --build
+#   docker-compose -f docker-compose.downloader-integration.yml down
+
+services:
+  # Mock server (serves files for Downloader to fetch)
+  mock-file-server:
+    build:
+      context: ../../docker/mock-oauth-server
+      dockerfile: Dockerfile
+    container_name: downloader-mock-file-server
+    ports:
+      - "${DOWNLOADER_SERVER_PORT:-8196}:8080"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    networks:
+      - downloader-test-network
+
+  # TokenRelay with Downloader plugin enabled
+  tokenrelay:
+    build:
+      context: ../..
+      dockerfile: docker/Dockerfile
+    container_name: downloader-tokenrelay
+    ports:
+      - "${DOWNLOADER_TOKENRELAY_PORT:-5198}:8080"
+    volumes:
+      - ./tokenrelay-downloader-test.json:/app/tokenrelay.json:ro
+    environment:
+      - ASPNETCORE_URLS=http://+:8080
+      - ASPNETCORE_ENVIRONMENT=Development
+    depends_on:
+      mock-file-server:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    networks:
+      - downloader-test-network
+
+networks:
+  downloader-test-network:
+    driver: bridge

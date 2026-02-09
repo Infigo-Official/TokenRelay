@@ -661,6 +661,83 @@ def token_short_expiry():
     }), 200
 
 
+# ============================================================================
+# FILE DOWNLOAD TEST ENDPOINTS - For testing Downloader plugin
+# ============================================================================
+
+@app.route('/v1/files/sample.txt', methods=['GET'])
+def file_sample_text():
+    """Returns a plain text file for Downloader testing."""
+    content = "Hello from the mock file server!\nThis is a sample text file for testing."
+    response = app.make_response(content)
+    response.headers['Content-Type'] = 'text/plain'
+    response.headers['Content-Disposition'] = 'attachment; filename="sample.txt"'
+    return response
+
+
+@app.route('/v1/files/sample.json', methods=['GET'])
+def file_sample_json():
+    """Returns a JSON file for Downloader testing."""
+    return jsonify({
+        "message": "Sample JSON file",
+        "items": [1, 2, 3],
+        "nested": {"key": "value"}
+    })
+
+
+@app.route('/v1/files/binary', methods=['GET'])
+def file_binary():
+    """Returns a simulated PNG binary file (magic bytes + random data)."""
+    import os
+    # PNG magic bytes
+    png_header = b'\x89PNG\r\n\x1a\n'
+    # Add some random data to simulate a real image
+    random_data = os.urandom(256)
+    content = png_header + random_data
+    response = app.make_response(content)
+    response.headers['Content-Type'] = 'image/png'
+    response.headers['Content-Disposition'] = 'attachment; filename="image.png"'
+    return response
+
+
+@app.route('/v1/files/large', methods=['GET'])
+def file_large():
+    """Returns a 1MB binary file for large file transfer testing."""
+    # Generate 1MB of repeating pattern data
+    pattern = b'DownloaderTestData' * 64  # ~1KB block
+    content = pattern * 1024  # ~1MB
+    content = content[:1048576]  # Exactly 1MB
+    response = app.make_response(content)
+    response.headers['Content-Type'] = 'application/octet-stream'
+    response.headers['Content-Length'] = str(len(content))
+    return response
+
+
+@app.route('/v1/files/redirect', methods=['GET'])
+def file_redirect():
+    """Returns a 302 redirect to sample.txt for redirect testing."""
+    from flask import redirect
+    return redirect('/v1/files/sample.txt', code=302)
+
+
+@app.route('/v1/files/error/<int:status_code>', methods=['GET'])
+def file_error(status_code):
+    """Returns the specified HTTP error status code for file error testing."""
+    messages = {
+        400: "Bad Request",
+        403: "Forbidden",
+        404: "File Not Found",
+        500: "Internal Server Error",
+        502: "Bad Gateway",
+        503: "Service Unavailable"
+    }
+    message = messages.get(status_code, f"Error {status_code}")
+    return jsonify({
+        "error": message,
+        "status": status_code
+    }), status_code
+
+
 if __name__ == '__main__':
     # Debug mode disabled for security - prevents arbitrary code execution through debugger
     app.run(host='0.0.0.0', port=8080, debug=False)
