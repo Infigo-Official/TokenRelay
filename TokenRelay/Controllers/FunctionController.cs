@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using System.Text.Json;
 using TokenRelay.Services;
+using TokenRelay.Utilities;
 
 namespace TokenRelay.Controllers;
 
@@ -32,8 +33,8 @@ public class FunctionController : ControllerBase
         var clientIP = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
 
         // Sanitize route parameters to prevent log injection via URL-encoded newlines
-        var sanitizedPlugin = plugin?.Replace("\r", string.Empty).Replace("\n", string.Empty);
-        var sanitizedFunction = function?.Replace("\r", string.Empty).Replace("\n", string.Empty);
+        var sanitizedPlugin = SanitizationHelper.SanitizeForLogging(plugin);
+        var sanitizedFunction = SanitizationHelper.SanitizeForLogging(function);
 
         _logger.LogInformation("FunctionController: Received request to execute function '{Function}' in plugin '{Plugin}' from {ClientIP}",
             sanitizedFunction, sanitizedPlugin, clientIP);
