@@ -9,10 +9,7 @@ FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /src
 
 # Accept version argument
-# VERSION: semantic version (e.g., 1.0.0-docker or 1.2.3)
-# ASSEMBLY_VERSION: numeric-only version for AssemblyVersion/FileVersion (e.g., 1.0.0.0)
 ARG VERSION=1.0.0-docker
-ARG ASSEMBLY_VERSION=1.0.0.0
 ARG BUILD_DATE
 
 # Copy project file and restore dependencies
@@ -25,19 +22,14 @@ COPY ../TokenRelay/ TokenRelay/
 RUN rm -f TokenRelay/tokenrelay.json
 WORKDIR "/src/TokenRelay"
 RUN dotnet build "TokenRelay.csproj" -c Release -o /app/build \
-    /p:Version=${VERSION} \
-    /p:AssemblyVersion=${ASSEMBLY_VERSION} \
-    /p:FileVersion=${ASSEMBLY_VERSION}
+    /p:Version=${VERSION}
 
 # Publish the application
 FROM build AS publish
 ARG VERSION=1.0.0-docker
-ARG ASSEMBLY_VERSION=1.0.0.0
 RUN dotnet publish "TokenRelay.csproj" -c Release -o /app/publish \
     /p:UseAppHost=false \
-    /p:Version=${VERSION} \
-    /p:AssemblyVersion=${ASSEMBLY_VERSION} \
-    /p:FileVersion=${ASSEMBLY_VERSION}
+    /p:Version=${VERSION}
 
 # Final stage - create runtime image
 FROM base AS final
@@ -55,14 +47,17 @@ RUN rm -f tokenrelay.json
 # Create directory for file uploads and logs
 RUN mkdir -p /app/uploads /app/logs
 
-# Install curl for health checks, ca-certificates, and network tools
+# Install curl for health checks, ca-certificates, network tools, and New Relic .NET agent in a single layer
+# This reduces image size by avoiding multiple apt-get update calls
 # iproute2 provides 'ss' for socket statistics, dnsutils provides 'nslookup' and 'dig'
 RUN apt-get update \
-    && apt-get install -y curl ca-certificates iproute2 dnsutils \
+    && apt-get install -y curl ca-certificates gnupg iproute2 dnsutils \
+    && curl -fsSL https://download.newrelic.com/548C16BF.gpg | gpg --dearmor -o /usr/share/keyrings/newrelic-dotnet-agent-archive-keyring.gpg \
+    && curl -fsSL https://download.newrelic.com/NEWRELIC_APT_2DAD550E.public | gpg --dearmor -o /usr/share/keyrings/newrelic-apt-2dad550e.gpg \
+    && echo 'deb [signed-by=/usr/share/keyrings/newrelic-apt-2dad550e.gpg] http://apt.newrelic.com/debian/ newrelic non-free' | tee /etc/apt/sources.list.d/newrelic.list \
+    && apt-get update \
+    && apt-get install -y newrelic-dotnet-agent \
     && rm -rf /var/lib/apt/lists/*
-
-# New Relic .NET agent directory (agent can be mounted or installed separately if needed)
-RUN mkdir -p /usr/local/newrelic-dotnet-agent
 
 # Set environment variables
 ENV ASPNETCORE_ENVIRONMENT=Production
