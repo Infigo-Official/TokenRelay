@@ -7,313 +7,239 @@ namespace TokenRelay.Tests.Utilities;
 
 public class QueryParamsHelperTests
 {
-    #region MergeQueryParams Tests
+    private static readonly Dictionary<string, string> ConfiguredParams = new()
+    {
+        ["script"] = "customscript_test",
+        ["deploy"] = "customdeploy_test"
+    };
+
+    #region Standalone Placeholder Tests
 
     [Fact]
-    public void MergeQueryParams_AppendsConfiguredParams()
+    public void ResolveQueryParamPlaceholders_StandalonePlaceholder_ExpandsToKeyValue()
     {
-        // Arrange
-        var baseUrl = "https://api.example.com/resource";
-        var configuredParams = new Dictionary<string, string>
-        {
-            ["script"] = "customscript_test",
-            ["deploy"] = "customdeploy_test"
-        };
+        var (result, error) = QueryParamsHelper.ResolveQueryParamPlaceholders(
+            "https://api.example.com/resource",
+            ConfiguredParams,
+            "?{script}");
 
-        // Act
-        var result = QueryParamsHelper.MergeQueryParams(baseUrl, configuredParams, null);
+        Assert.Null(error);
+        Assert.Contains("script=customscript_test", result);
+    }
 
-        // Assert
+    [Fact]
+    public void ResolveQueryParamPlaceholders_MultiplePlaceholders_ExpandsAll()
+    {
+        var (result, error) = QueryParamsHelper.ResolveQueryParamPlaceholders(
+            "https://api.example.com/resource",
+            ConfiguredParams,
+            "?{script}&{deploy}");
+
+        Assert.Null(error);
         Assert.Contains("script=customscript_test", result);
         Assert.Contains("deploy=customdeploy_test", result);
     }
 
+    #endregion
+
+    #region Value Placeholder Tests
+
     [Fact]
-    public void MergeQueryParams_MergesRequestParams()
+    public void ResolveQueryParamPlaceholders_ValuePlaceholder_ReplacesValue()
     {
-        // Arrange
-        var baseUrl = "https://api.example.com/resource";
-        var requestQueryString = "?action=create&format=json";
+        var (result, error) = QueryParamsHelper.ResolveQueryParamPlaceholders(
+            "https://api.example.com/resource",
+            ConfiguredParams,
+            "?key={script}");
 
-        // Act
-        var result = QueryParamsHelper.MergeQueryParams(baseUrl, null, requestQueryString);
-
-        // Assert
-        Assert.Contains("action=create", result);
-        Assert.Contains("format=json", result);
+        Assert.Null(error);
+        Assert.Contains("key=customscript_test", result);
     }
 
     [Fact]
-    public void MergeQueryParams_RequestParamsOverrideConfigured()
+    public void ResolveQueryParamPlaceholders_MultipleValuePlaceholders_ReplacesAll()
     {
-        // Arrange
-        var baseUrl = "https://api.example.com/resource";
         var configuredParams = new Dictionary<string, string>
         {
-            ["script"] = "config_script",
-            ["deploy"] = "config_deploy"
-        };
-        var requestQueryString = "?script=override_script";
-
-        // Act
-        var result = QueryParamsHelper.MergeQueryParams(baseUrl, configuredParams, requestQueryString);
-
-        // Assert
-        Assert.Contains("script=override_script", result);
-        Assert.Contains("deploy=config_deploy", result);
-        // Should only have one script param (overridden)
-        Assert.DoesNotContain("config_script", result);
-    }
-
-    [Fact]
-    public void MergeQueryParams_ReturnsOriginalUrl_WhenNoParams()
-    {
-        // Arrange
-        var baseUrl = "https://api.example.com/resource";
-
-        // Act
-        var result = QueryParamsHelper.MergeQueryParams(baseUrl, null, null);
-
-        // Assert
-        Assert.Equal(baseUrl, result);
-    }
-
-    [Fact]
-    public void MergeQueryParams_ReturnsOriginalUrl_WhenEmptyParams()
-    {
-        // Arrange
-        var baseUrl = "https://api.example.com/resource";
-        var emptyParams = new Dictionary<string, string>();
-
-        // Act
-        var result = QueryParamsHelper.MergeQueryParams(baseUrl, emptyParams, "");
-
-        // Assert
-        Assert.Equal(baseUrl, result);
-    }
-
-    [Fact]
-    public void MergeQueryParams_HandlesEmptyConfiguredParams()
-    {
-        // Arrange
-        var baseUrl = "https://api.example.com/resource";
-        var emptyParams = new Dictionary<string, string>();
-        var requestQueryString = "?action=test";
-
-        // Act
-        var result = QueryParamsHelper.MergeQueryParams(baseUrl, emptyParams, requestQueryString);
-
-        // Assert
-        Assert.Contains("action=test", result);
-    }
-
-    [Fact]
-    public void MergeQueryParams_HandlesEmptyRequestQueryString()
-    {
-        // Arrange
-        var baseUrl = "https://api.example.com/resource";
-        var configuredParams = new Dictionary<string, string>
-        {
-            ["param1"] = "value1"
+            ["a"] = "val1",
+            ["b"] = "val2"
         };
 
-        // Act
-        var result = QueryParamsHelper.MergeQueryParams(baseUrl, configuredParams, "");
+        var (result, error) = QueryParamsHelper.ResolveQueryParamPlaceholders(
+            "https://api.example.com/resource",
+            configuredParams,
+            "?q={a}+{b}");
 
-        // Assert
-        Assert.Contains("param1=value1", result);
-    }
-
-    [Fact]
-    public void MergeQueryParams_PreservesExistingUrlQueryParams()
-    {
-        // Arrange
-        var baseUrl = "https://api.example.com/resource?existing=param";
-        var configuredParams = new Dictionary<string, string>
-        {
-            ["new"] = "value"
-        };
-
-        // Act
-        var result = QueryParamsHelper.MergeQueryParams(baseUrl, configuredParams, null);
-
-        // Assert
-        Assert.Contains("existing=param", result);
-        Assert.Contains("new=value", result);
-    }
-
-    [Fact]
-    public void MergeQueryParams_HandlesNetSuiteScriptDeployParams()
-    {
-        // Arrange - NetSuite specific use case
-        var baseUrl = "https://1234567.restlets.api.netsuite.com/app/site/hosting/restlet.nl";
-        var configuredParams = new Dictionary<string, string>
-        {
-            ["script"] = "customscript_jpcw_customerportal_rl",
-            ["deploy"] = "customdeploy_jpcw_customerportal_rl"
-        };
-
-        // Act
-        var result = QueryParamsHelper.MergeQueryParams(baseUrl, configuredParams, null);
-
-        // Assert
-        Assert.Contains("script=customscript_jpcw_customerportal_rl", result);
-        Assert.Contains("deploy=customdeploy_jpcw_customerportal_rl", result);
-        Assert.StartsWith("https://1234567.restlets.api.netsuite.com", result);
-    }
-
-    [Fact]
-    public void MergeQueryParams_HandlesSpecialCharactersInValues()
-    {
-        // Arrange
-        var baseUrl = "https://api.example.com/resource";
-        var configuredParams = new Dictionary<string, string>
-        {
-            ["filter"] = "name=test&status=active"
-        };
-
-        // Act
-        var result = QueryParamsHelper.MergeQueryParams(baseUrl, configuredParams, null);
-
-        // Assert
-        Assert.Contains("filter=", result);
-        // The value should be present (URL encoding may vary by implementation)
-        // Just verify the filter parameter exists with a value containing the key parts
-        Assert.True(result.Contains("name") && result.Contains("test"));
-    }
-
-    [Fact]
-    public void MergeQueryParams_SkipsEmptyValueParams()
-    {
-        // Arrange
-        var baseUrl = "https://api.example.com/resource";
-        var configuredParams = new Dictionary<string, string>
-        {
-            ["valid"] = "value",
-            ["empty"] = "",
-            ["null"] = null!
-        };
-
-        // Act
-        var result = QueryParamsHelper.MergeQueryParams(baseUrl, configuredParams, null);
-
-        // Assert
-        Assert.Contains("valid=value", result);
-        Assert.DoesNotContain("empty=", result);
-    }
-
-    [Fact]
-    public void MergeQueryParams_HandlesBothConfiguredAndRequestParams()
-    {
-        // Arrange
-        var baseUrl = "https://api.example.com/resource";
-        var configuredParams = new Dictionary<string, string>
-        {
-            ["configured1"] = "config_value1",
-            ["configured2"] = "config_value2"
-        };
-        var requestQueryString = "?request1=req_value1&request2=req_value2";
-
-        // Act
-        var result = QueryParamsHelper.MergeQueryParams(baseUrl, configuredParams, requestQueryString);
-
-        // Assert
-        Assert.Contains("configured1=config_value1", result);
-        Assert.Contains("configured2=config_value2", result);
-        Assert.Contains("request1=req_value1", result);
-        Assert.Contains("request2=req_value2", result);
-    }
-
-    [Fact]
-    public void MergeQueryParams_HandlesRequestQueryStringWithoutQuestionMark()
-    {
-        // Arrange
-        var baseUrl = "https://api.example.com/resource";
-        // Note: Some systems might pass query string without leading ?
-        var requestQueryString = "action=test";
-
-        // Act
-        var result = QueryParamsHelper.MergeQueryParams(baseUrl, null, requestQueryString);
-
-        // Assert - Should still work
-        Assert.Contains("action=test", result);
+        Assert.Null(error);
+        Assert.Contains("q=val1+val2", result);
     }
 
     #endregion
 
-    #region HasQueryParams Tests
+    #region Mixed Tests
 
     [Fact]
-    public void HasQueryParams_ReturnsTrue_WhenParamsExist()
+    public void ResolveQueryParamPlaceholders_MixedPlaceholdersAndLiterals()
     {
-        // Arrange
-        var queryParams = new Dictionary<string, string>
-        {
-            ["key"] = "value"
-        };
+        var (result, error) = QueryParamsHelper.ResolveQueryParamPlaceholders(
+            "https://api.example.com/resource",
+            ConfiguredParams,
+            "?{script}&name=foo&key={deploy}");
 
-        // Act
-        var result = QueryParamsHelper.HasQueryParams(queryParams);
+        Assert.Null(error);
+        Assert.Contains("script=customscript_test", result);
+        Assert.Contains("name=foo", result);
+        Assert.Contains("key=customdeploy_test", result);
+    }
 
-        // Assert
-        Assert.True(result);
+    #endregion
+
+    #region Passthrough Tests
+
+    [Fact]
+    public void ResolveQueryParamPlaceholders_NoPlaceholders_PassedThroughUnchanged()
+    {
+        var (result, error) = QueryParamsHelper.ResolveQueryParamPlaceholders(
+            "https://api.example.com/resource",
+            ConfiguredParams,
+            "?name=foo&action=test");
+
+        Assert.Null(error);
+        Assert.Contains("name=foo", result);
+        Assert.Contains("action=test", result);
+        // Configured params should NOT be auto-added
+        Assert.DoesNotContain("script=", result);
+        Assert.DoesNotContain("deploy=", result);
     }
 
     [Fact]
-    public void HasQueryParams_ReturnsFalse_WhenNull()
+    public void ResolveQueryParamPlaceholders_NoQueryString_ReturnsBaseUrlUnchanged()
     {
-        // Act
-        var result = QueryParamsHelper.HasQueryParams(null);
+        var baseUrl = "https://api.example.com/resource";
 
-        // Assert
-        Assert.False(result);
+        var (result, error) = QueryParamsHelper.ResolveQueryParamPlaceholders(
+            baseUrl, ConfiguredParams, null);
+
+        Assert.Null(error);
+        Assert.Equal(baseUrl, result);
     }
 
     [Fact]
-    public void HasQueryParams_ReturnsFalse_WhenEmpty()
+    public void ResolveQueryParamPlaceholders_EmptyQueryString_ReturnsBaseUrlUnchanged()
     {
-        // Arrange
-        var queryParams = new Dictionary<string, string>();
+        var baseUrl = "https://api.example.com/resource";
 
-        // Act
-        var result = QueryParamsHelper.HasQueryParams(queryParams);
+        var (result, error) = QueryParamsHelper.ResolveQueryParamPlaceholders(
+            baseUrl, ConfiguredParams, "");
 
-        // Assert
-        Assert.False(result);
+        Assert.Null(error);
+        Assert.Equal(baseUrl, result);
     }
 
     [Fact]
-    public void HasQueryParams_ReturnsFalse_WhenOnlyEmptyValues()
+    public void ResolveQueryParamPlaceholders_ConfiguredParamsNotAutoAdded()
     {
-        // Arrange
-        var queryParams = new Dictionary<string, string>
-        {
-            ["key1"] = "",
-            ["key2"] = null!
-        };
+        // Key behavioral change: configured params are NOT auto-added when there's no placeholder
+        var baseUrl = "https://api.example.com/resource";
 
-        // Act
-        var result = QueryParamsHelper.HasQueryParams(queryParams);
+        var (result, error) = QueryParamsHelper.ResolveQueryParamPlaceholders(
+            baseUrl, ConfiguredParams, null);
 
-        // Assert
-        Assert.False(result);
+        Assert.Null(error);
+        Assert.Equal(baseUrl, result);
+        Assert.DoesNotContain("script=", result);
+        Assert.DoesNotContain("deploy=", result);
+    }
+
+    #endregion
+
+    #region Error Tests
+
+    [Fact]
+    public void ResolveQueryParamPlaceholders_UnknownStandalonePlaceholder_ReturnsError()
+    {
+        var (_, error) = QueryParamsHelper.ResolveQueryParamPlaceholders(
+            "https://api.example.com/resource",
+            ConfiguredParams,
+            "?{unknown}");
+
+        Assert.NotNull(error);
+        Assert.Contains("Unknown query parameter placeholder: unknown", error);
     }
 
     [Fact]
-    public void HasQueryParams_ReturnsTrue_WhenAtLeastOneNonEmptyValue()
+    public void ResolveQueryParamPlaceholders_UnknownValuePlaceholder_ReturnsError()
     {
-        // Arrange
-        var queryParams = new Dictionary<string, string>
-        {
-            ["empty"] = "",
-            ["valid"] = "value"
-        };
+        var (_, error) = QueryParamsHelper.ResolveQueryParamPlaceholders(
+            "https://api.example.com/resource",
+            ConfiguredParams,
+            "?key={unknown}");
 
-        // Act
-        var result = QueryParamsHelper.HasQueryParams(queryParams);
+        Assert.NotNull(error);
+        Assert.Contains("Unknown query parameter placeholder: unknown", error);
+    }
 
-        // Assert
-        Assert.True(result);
+    [Fact]
+    public void ResolveQueryParamPlaceholders_NullConfigWithPlaceholder_ReturnsError()
+    {
+        var (_, error) = QueryParamsHelper.ResolveQueryParamPlaceholders(
+            "https://api.example.com/resource",
+            null,
+            "?{script}");
+
+        Assert.NotNull(error);
+        Assert.Contains("Unknown query parameter placeholder: script", error);
+    }
+
+    [Fact]
+    public void ResolveQueryParamPlaceholders_EmptyConfigWithPlaceholder_ReturnsError()
+    {
+        var (_, error) = QueryParamsHelper.ResolveQueryParamPlaceholders(
+            "https://api.example.com/resource",
+            new Dictionary<string, string>(),
+            "?{script}");
+
+        Assert.NotNull(error);
+        Assert.Contains("Unknown query parameter placeholder: script", error);
+    }
+
+    #endregion
+
+    #region Edge Cases
+
+    [Fact]
+    public void ResolveQueryParamPlaceholders_BaseUrlWithExistingQueryString()
+    {
+        var (result, error) = QueryParamsHelper.ResolveQueryParamPlaceholders(
+            "https://api.example.com/resource?existing=param",
+            ConfiguredParams,
+            "?{script}");
+
+        Assert.Null(error);
+        Assert.Contains("existing=param", result);
+        Assert.Contains("script=customscript_test", result);
+    }
+
+    [Fact]
+    public void ResolveQueryParamPlaceholders_QueryStringWithoutQuestionMark()
+    {
+        var (result, error) = QueryParamsHelper.ResolveQueryParamPlaceholders(
+            "https://api.example.com/resource",
+            ConfiguredParams,
+            "{script}");
+
+        Assert.Null(error);
+        Assert.Contains("script=customscript_test", result);
+    }
+
+    [Fact]
+    public void ResolveQueryParamPlaceholders_EmptyBaseUrl()
+    {
+        var (result, error) = QueryParamsHelper.ResolveQueryParamPlaceholders(
+            "", ConfiguredParams, "?{script}");
+
+        Assert.Null(error);
+        Assert.Equal("", result);
     }
 
     #endregion

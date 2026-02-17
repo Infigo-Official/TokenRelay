@@ -82,15 +82,19 @@ public class ProxyService : IProxyService
         // Build target URL
         var targetUrl = CombineUrls(target.Endpoint, remainingPath);
 
-        // Merge configured query params with request query params
-        // Configured params are added first, request params can override them
-        if (QueryParamsHelper.HasQueryParams(target.QueryParams) || !string.IsNullOrEmpty(context.Request.QueryString.Value))
+        // Resolve query parameter placeholders from configuration
+        if (!string.IsNullOrEmpty(context.Request.QueryString.Value))
         {
-            targetUrl = QueryParamsHelper.MergeQueryParams(
+            var (resolvedUrl, error) = QueryParamsHelper.ResolveQueryParamPlaceholders(
                 targetUrl,
                 target.QueryParams,
                 context.Request.QueryString.Value);
-            _logger.LogDebug("ProxyService: Merged query parameters into target URL");
+
+            if (error != null)
+                throw new ArgumentException(error);
+
+            targetUrl = resolvedUrl;
+            _logger.LogDebug("ProxyService: Resolved query parameter placeholders");
         }
 
         _logger.LogDebug("ProxyService: Final target URL constructed: {TargetUrl}", SanitizeUrlForLogging(targetUrl));
