@@ -72,6 +72,9 @@ nunit-*.xml
 # Bruno API collections (may contain environment-specific data)
 bruno-collection/
 
+# Development/scratch files
+dev/
+
 # IDEs and Editors
 .claude
 .idea

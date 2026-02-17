@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using System.Text.Json;
+using NewRelic.Api.Agent;
 using TokenRelay.Services;
 using TokenRelay.Utilities;
 
@@ -35,6 +36,13 @@ public class FunctionController : ControllerBase
         // Sanitize route parameters to prevent log injection via URL-encoded newlines
         var sanitizedPlugin = SanitizationHelper.SanitizeForLogging(plugin);
         var sanitizedFunction = SanitizationHelper.SanitizeForLogging(function);
+
+        // Add NewRelic transaction instrumentation for plugin calls
+        NewRelic.Api.Agent.NewRelic.SetTransactionName("Plugin", $"{plugin}/{function}");
+        var transaction = NewRelic.Api.Agent.NewRelic.GetAgent()?.CurrentTransaction;
+        transaction?.AddCustomAttribute("tokenrelay.plugin", plugin);
+        transaction?.AddCustomAttribute("tokenrelay.function", function);
+        transaction?.AddCustomAttribute("tokenrelay.client_ip", clientIP);
 
         _logger.LogInformation("FunctionController: Received request to execute function '{Function}' in plugin '{Plugin}' from {ClientIP}",
             sanitizedFunction, sanitizedPlugin, clientIP);
@@ -171,12 +179,25 @@ public class FunctionController : ControllerBase
                 }
             }
 
+            // Inject incoming request headers for plugins to use in telemetry
+            var requestHeaders = new Dictionary<string, string>();
+            foreach (var header in Request.Headers)
+            {
+                requestHeaders[header.Key] = string.Join(", ", header.Value.ToArray());
+            }
+            parameters["__requestHeaders"] = requestHeaders;
+
             _logger.LogInformation("FunctionController: Executing function '{Function}' on plugin '{Plugin}' with {ParameterCount} parameters from {ClientIP}",
                 sanitizedFunction, sanitizedPlugin, parameters.Count, clientIP);
 
             var stopwatch = System.Diagnostics.Stopwatch.StartNew();
             var result = await _pluginService.ExecutePluginFunctionAsync(plugin, function, parameters);
             stopwatch.Stop();
+
+            // Add execution metrics to NewRelic
+            transaction?.AddCustomAttribute("tokenrelay.plugin_exec_time_ms", stopwatch.ElapsedMilliseconds);
+            var responseType = result.ContainsKey("__responseStream") ? "stream" : "json";
+            transaction?.AddCustomAttribute("tokenrelay.response_type", responseType);
 
             _logger.LogInformation("FunctionController: Function '{Plugin}.{Function}' executed successfully in {ElapsedMs}ms from {ClientIP}",
                 sanitizedPlugin, sanitizedFunction, stopwatch.ElapsedMilliseconds, clientIP);
@@ -212,6 +233,13 @@ public class FunctionController : ControllerBase
         }
         catch (Exception ex)
         {
+            NewRelic.Api.Agent.NewRelic.NoticeError(ex, new Dictionary<string, object>
+            {
+                { "tokenrelay.plugin", plugin },
+                { "tokenrelay.function", function },
+                { "tokenrelay.client_ip", clientIP },
+                { "tokenrelay.error_type", "PluginException" }
+            });
             _logger.LogError(ex, "FunctionController: Error executing plugin function '{Plugin}.{Function}' from {ClientIP}",
                 sanitizedPlugin, sanitizedFunction, clientIP);
             return StatusCode(500, new

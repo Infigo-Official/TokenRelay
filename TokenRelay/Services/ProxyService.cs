@@ -95,6 +95,9 @@ public class ProxyService : IProxyService
 
         _logger.LogDebug("ProxyService: Final target URL constructed: {TargetUrl}", SanitizeUrlForLogging(targetUrl));
 
+        // Add full target URL (with query strings) to NewRelic for observability
+        transaction?.AddCustomAttribute("tokenrelay.target_url", SanitizationHelper.SanitizeForLogging(targetUrl));
+
         // Create the forwarded request
         using var forwardedRequest = new HttpRequestMessage(
             new HttpMethod(context.Request.Method),
@@ -126,6 +129,9 @@ public class ProxyService : IProxyService
         }
 
         _logger.LogDebug("ProxyService: Copied {HeaderCount} headers to forwarded request", headerCount);
+
+        // Add incoming request headers to NewRelic for observability
+        transaction?.AddCustomAttribute("tokenrelay.request_headers", SanitizationHelper.SerializeHeadersForTelemetry(context.Request.Headers));
 
         // Add target-specific headers
         if (target.Headers.Any())
@@ -316,11 +322,11 @@ public class ProxyService : IProxyService
         }
         catch (HttpRequestException ex)
         {
-            // Report error to New Relic with context (no sensitive data)
+            // Report error to New Relic with context (full URL with query strings for diagnostics)
             NewRelic.Api.Agent.NewRelic.NoticeError(ex, new Dictionary<string, object>
             {
                 { "tokenrelay.target", targetName },
-                { "tokenrelay.url", SanitizeUrlForLogging(targetUrl) },
+                { "tokenrelay.url", SanitizationHelper.SanitizeForLogging(targetUrl) },
                 { "tokenrelay.mode", proxyConfig.Mode },
                 { "tokenrelay.error_type", "HttpRequestException" }
             });
@@ -333,7 +339,7 @@ public class ProxyService : IProxyService
             NewRelic.Api.Agent.NewRelic.NoticeError(ex, new Dictionary<string, object>
             {
                 { "tokenrelay.target", targetName },
-                { "tokenrelay.url", SanitizeUrlForLogging(targetUrl) },
+                { "tokenrelay.url", SanitizationHelper.SanitizeForLogging(targetUrl) },
                 { "tokenrelay.mode", proxyConfig.Mode },
                 { "tokenrelay.error_type", "Timeout" },
                 { "tokenrelay.timeout_seconds", proxyConfig.TimeoutSeconds }
@@ -347,7 +353,7 @@ public class ProxyService : IProxyService
             NewRelic.Api.Agent.NewRelic.NoticeError(ex, new Dictionary<string, object>
             {
                 { "tokenrelay.target", targetName },
-                { "tokenrelay.url", SanitizeUrlForLogging(targetUrl) },
+                { "tokenrelay.url", SanitizationHelper.SanitizeForLogging(targetUrl) },
                 { "tokenrelay.mode", proxyConfig.Mode },
                 { "tokenrelay.error_type", "Cancelled" }
             });
@@ -360,7 +366,7 @@ public class ProxyService : IProxyService
             NewRelic.Api.Agent.NewRelic.NoticeError(ex, new Dictionary<string, object>
             {
                 { "tokenrelay.target", targetName },
-                { "tokenrelay.url", SanitizeUrlForLogging(targetUrl) },
+                { "tokenrelay.url", SanitizationHelper.SanitizeForLogging(targetUrl) },
                 { "tokenrelay.mode", proxyConfig.Mode },
                 { "tokenrelay.error_type", "Unexpected" }
             });
@@ -402,6 +408,10 @@ public class ProxyService : IProxyService
         }
 
         _logger.LogDebug("ProxyService: Chain target URL constructed: {TargetUrl}", SanitizeUrlForLogging(targetUrl));
+
+        // Add full chain target URL (with query strings) to NewRelic for observability
+        transaction?.AddCustomAttribute("tokenrelay.chain_target_url", SanitizationHelper.SanitizeForLogging(targetUrl));
+        transaction?.AddCustomAttribute("tokenrelay.chain_request_headers", SanitizationHelper.SerializeHeadersForTelemetry(context.Request.Headers));
 
         // Create the forwarded request
         using var forwardedRequest = new HttpRequestMessage(
@@ -558,7 +568,7 @@ public class ProxyService : IProxyService
             NewRelic.Api.Agent.NewRelic.NoticeError(ex, new Dictionary<string, object>
             {
                 { "tokenrelay.target", targetName },
-                { "tokenrelay.chain_url", SanitizeUrlForLogging(targetUrl) },
+                { "tokenrelay.chain_url", SanitizationHelper.SanitizeForLogging(targetUrl) },
                 { "tokenrelay.mode", "chain" },
                 { "tokenrelay.error_type", "ChainTimeout" },
                 { "tokenrelay.timeout_seconds", proxyConfig.TimeoutSeconds }
@@ -572,7 +582,7 @@ public class ProxyService : IProxyService
             NewRelic.Api.Agent.NewRelic.NoticeError(ex, new Dictionary<string, object>
             {
                 { "tokenrelay.target", targetName },
-                { "tokenrelay.chain_url", SanitizeUrlForLogging(targetUrl) },
+                { "tokenrelay.chain_url", SanitizationHelper.SanitizeForLogging(targetUrl) },
                 { "tokenrelay.mode", "chain" },
                 { "tokenrelay.error_type", "ChainHttpError" }
             });
@@ -585,7 +595,7 @@ public class ProxyService : IProxyService
             NewRelic.Api.Agent.NewRelic.NoticeError(ex, new Dictionary<string, object>
             {
                 { "tokenrelay.target", targetName },
-                { "tokenrelay.chain_url", SanitizeUrlForLogging(targetUrl) },
+                { "tokenrelay.chain_url", SanitizationHelper.SanitizeForLogging(targetUrl) },
                 { "tokenrelay.mode", "chain" },
                 { "tokenrelay.error_type", "ChainUnexpected" }
             });
