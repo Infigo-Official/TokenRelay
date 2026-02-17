@@ -1,3 +1,5 @@
+using TokenRelay.Utilities;
+
 namespace TokenRelay.Plugins;
 
 public class DownloaderPlugin : ITokenRelayPlugin
@@ -40,10 +42,22 @@ public class DownloaderPlugin : ITokenRelayPlugin
 
     private async Task<Dictionary<string, object>> FetchUrl(Dictionary<string, object> parameters)
     {
+        var transaction = NewRelic.Api.Agent.NewRelic.GetAgent()?.CurrentTransaction;
+        string? url = null;
+        Uri? uri = null;
+
+        // Serialize incoming request headers for NewRelic if provided by FunctionController
+        if (parameters.TryGetValue("__requestHeaders", out var headersObj) && headersObj is Dictionary<string, string> reqHeaders)
+        {
+            transaction?.AddCustomAttribute("tokenrelay.downloader.headers", SanitizationHelper.SerializeHeadersForTelemetry(reqHeaders));
+        }
+
         try
         {
             if (_httpClient == null)
             {
+                transaction?.AddCustomAttribute("tokenrelay.downloader.success", false);
+                transaction?.AddCustomAttribute("tokenrelay.downloader.error_type", "ValidationError");
                 return new Dictionary<string, object>
                 {
                     ["success"] = false,
@@ -52,8 +66,10 @@ public class DownloaderPlugin : ITokenRelayPlugin
                 };
             }
 
-            if (!parameters.TryGetValue("url", out var urlObj) || urlObj is not string url || string.IsNullOrWhiteSpace(url))
+            if (!parameters.TryGetValue("url", out var urlObj) || urlObj is not string urlStr || string.IsNullOrWhiteSpace(urlStr))
             {
+                transaction?.AddCustomAttribute("tokenrelay.downloader.success", false);
+                transaction?.AddCustomAttribute("tokenrelay.downloader.error_type", "ValidationError");
                 return new Dictionary<string, object>
                 {
                     ["success"] = false,
@@ -62,8 +78,13 @@ public class DownloaderPlugin : ITokenRelayPlugin
                 };
             }
 
-            if (!Uri.TryCreate(url, UriKind.Absolute, out var uri))
+            url = urlStr;
+
+            if (!Uri.TryCreate(url, UriKind.Absolute, out uri))
             {
+                transaction?.AddCustomAttribute("tokenrelay.downloader.url", SanitizationHelper.SanitizeForLogging(url));
+                transaction?.AddCustomAttribute("tokenrelay.downloader.success", false);
+                transaction?.AddCustomAttribute("tokenrelay.downloader.error_type", "ValidationError");
                 return new Dictionary<string, object>
                 {
                     ["success"] = false,
@@ -72,8 +93,13 @@ public class DownloaderPlugin : ITokenRelayPlugin
                 };
             }
 
+            transaction?.AddCustomAttribute("tokenrelay.downloader.url", SanitizationHelper.SanitizeForLogging(url));
+            transaction?.AddCustomAttribute("tokenrelay.downloader.host", uri.Host);
+
             if (uri.Scheme != "http" && uri.Scheme != "https")
             {
+                transaction?.AddCustomAttribute("tokenrelay.downloader.success", false);
+                transaction?.AddCustomAttribute("tokenrelay.downloader.error_type", "ValidationError");
                 return new Dictionary<string, object>
                 {
                     ["success"] = false,
@@ -84,6 +110,8 @@ public class DownloaderPlugin : ITokenRelayPlugin
 
             if (_allowedHosts != null && !_allowedHosts.Contains(uri.Host))
             {
+                transaction?.AddCustomAttribute("tokenrelay.downloader.success", false);
+                transaction?.AddCustomAttribute("tokenrelay.downloader.error_type", "ValidationError");
                 return new Dictionary<string, object>
                 {
                     ["success"] = false,
@@ -93,10 +121,17 @@ public class DownloaderPlugin : ITokenRelayPlugin
             }
 
             using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(_timeoutSeconds));
+
+            var fetchStopwatch = ValueStopwatch.StartNew();
             var response = await _httpClient.GetAsync(uri, HttpCompletionOption.ResponseHeadersRead, cts.Token);
+            var fetchElapsedMs = fetchStopwatch.GetElapsedMilliseconds();
+
+            transaction?.AddCustomAttribute("tokenrelay.downloader.status_code", (int)response.StatusCode);
+            transaction?.AddCustomAttribute("tokenrelay.downloader.response_time_ms", fetchElapsedMs);
 
             if (!response.IsSuccessStatusCode)
             {
+                transaction?.AddCustomAttribute("tokenrelay.downloader.success", false);
                 response.Dispose();
                 return new Dictionary<string, object>
                 {
@@ -110,6 +145,13 @@ public class DownloaderPlugin : ITokenRelayPlugin
             var contentType = response.Content.Headers.ContentType?.ToString() ?? "application/octet-stream";
             var contentLength = response.Content.Headers.ContentLength;
             var contentDisposition = response.Content.Headers.ContentDisposition?.FileName;
+
+            transaction?.AddCustomAttribute("tokenrelay.downloader.content_type", contentType);
+            if (contentLength.HasValue)
+            {
+                transaction?.AddCustomAttribute("tokenrelay.downloader.content_length", contentLength.Value);
+            }
+            transaction?.AddCustomAttribute("tokenrelay.downloader.success", true);
 
             var stream = await response.Content.ReadAsStreamAsync(cts.Token);
 
@@ -133,8 +175,16 @@ public class DownloaderPlugin : ITokenRelayPlugin
 
             return result;
         }
-        catch (TaskCanceledException)
+        catch (TaskCanceledException ex)
         {
+            transaction?.AddCustomAttribute("tokenrelay.downloader.success", false);
+            transaction?.AddCustomAttribute("tokenrelay.downloader.error_type", "Timeout");
+            NewRelic.Api.Agent.NewRelic.NoticeError(ex, new Dictionary<string, object>
+            {
+                { "tokenrelay.downloader.url", SanitizationHelper.SanitizeForLogging(url ?? "") },
+                { "tokenrelay.downloader.error_type", "Timeout" },
+                { "tokenrelay.downloader.timeout_seconds", _timeoutSeconds }
+            });
             return new Dictionary<string, object>
             {
                 ["success"] = false,
@@ -144,6 +194,13 @@ public class DownloaderPlugin : ITokenRelayPlugin
         }
         catch (HttpRequestException ex)
         {
+            transaction?.AddCustomAttribute("tokenrelay.downloader.success", false);
+            transaction?.AddCustomAttribute("tokenrelay.downloader.error_type", "HttpRequestException");
+            NewRelic.Api.Agent.NewRelic.NoticeError(ex, new Dictionary<string, object>
+            {
+                { "tokenrelay.downloader.url", SanitizationHelper.SanitizeForLogging(url ?? "") },
+                { "tokenrelay.downloader.error_type", "HttpRequestException" }
+            });
             return new Dictionary<string, object>
             {
                 ["success"] = false,
@@ -153,6 +210,13 @@ public class DownloaderPlugin : ITokenRelayPlugin
         }
         catch (Exception ex)
         {
+            transaction?.AddCustomAttribute("tokenrelay.downloader.success", false);
+            transaction?.AddCustomAttribute("tokenrelay.downloader.error_type", "Unexpected");
+            NewRelic.Api.Agent.NewRelic.NoticeError(ex, new Dictionary<string, object>
+            {
+                { "tokenrelay.downloader.url", SanitizationHelper.SanitizeForLogging(url ?? "") },
+                { "tokenrelay.downloader.error_type", "Unexpected" }
+            });
             return new Dictionary<string, object>
             {
                 ["success"] = false,

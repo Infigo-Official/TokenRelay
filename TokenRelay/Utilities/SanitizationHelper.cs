@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Microsoft.AspNetCore.Http;
 
 namespace TokenRelay.Utilities;
 
@@ -212,6 +213,59 @@ public static class SanitizationHelper
         }
 
         return string.Join("&", sanitizedParts);
+    }
+
+    /// <summary>
+    /// Serializes request headers as a JSON string for NewRelic telemetry attributes.
+    /// Sensitive header values are redacted via <see cref="SanitizeHeaderValue"/>.
+    /// The result is capped at 4000 characters (NewRelic custom attribute limit).
+    /// </summary>
+    /// <param name="headers">The HTTP request headers to serialize.</param>
+    /// <returns>A JSON string of sanitized header key-value pairs.</returns>
+    public static string SerializeHeadersForTelemetry(IHeaderDictionary headers)
+    {
+        if (headers == null || headers.Count == 0)
+            return "{}";
+
+        var sanitized = new Dictionary<string, string>();
+        foreach (var header in headers)
+        {
+            var value = string.Join(", ", header.Value.ToArray());
+            sanitized[header.Key] = SanitizeHeaderValue(header.Key, value);
+        }
+
+        var json = JsonSerializer.Serialize(sanitized);
+        if (json.Length > 4000)
+        {
+            json = json[..3997] + "...";
+        }
+        return json;
+    }
+
+    /// <summary>
+    /// Serializes request headers from a dictionary (as passed via plugin parameters) for NewRelic telemetry.
+    /// Sensitive header values are redacted via <see cref="SanitizeHeaderValue"/>.
+    /// The result is capped at 4000 characters (NewRelic custom attribute limit).
+    /// </summary>
+    /// <param name="headers">The headers dictionary to serialize.</param>
+    /// <returns>A JSON string of sanitized header key-value pairs.</returns>
+    public static string SerializeHeadersForTelemetry(Dictionary<string, string> headers)
+    {
+        if (headers == null || headers.Count == 0)
+            return "{}";
+
+        var sanitized = new Dictionary<string, string>();
+        foreach (var header in headers)
+        {
+            sanitized[header.Key] = SanitizeHeaderValue(header.Key, header.Value);
+        }
+
+        var json = JsonSerializer.Serialize(sanitized);
+        if (json.Length > 4000)
+        {
+            json = json[..3997] + "...";
+        }
+        return json;
     }
 
     /// <summary>
