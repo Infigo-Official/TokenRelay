@@ -97,10 +97,10 @@ public class ProxyService : IProxyService
             _logger.LogDebug("ProxyService: Resolved query parameter placeholders");
         }
 
-        _logger.LogDebug("ProxyService: Final target URL constructed: {TargetUrl}", SanitizeUrlForLogging(targetUrl));
+        _logger.LogDebug("ProxyService: Final target URL constructed: {TargetUrl}", targetUrl);
 
         // Add full target URL (with query strings) to NewRelic for observability
-        transaction?.AddCustomAttribute("tokenrelay.target_url", SanitizationHelper.SanitizeForLogging(targetUrl));
+        transaction?.AddCustomAttribute("tokenrelay.target_url", targetUrl);
 
         // Create the forwarded request
         using var forwardedRequest = new HttpRequestMessage(
