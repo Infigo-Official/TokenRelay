@@ -628,7 +628,17 @@ public class ProxyService : IProxyService
             "TOKEN-RELAY-TARGET",
             "Host",
             "Connection",
-            "Transfer-Encoding"
+            "Transfer-Encoding",
+            "WAS-DEFAULT-HOSTNAME",
+            "X-Forwarded-Proto",
+            "X-AppService-Proto",
+            "X-ARR-SSL",
+            "X-Forwarded-TlsVersion",
+            "X-Forwarded-For",
+            "X-Original-URL",
+            "X-WAWS-Unencoded-URL",
+            "X-Client-IP",
+            "X-Client-Port"
         };
 
         return excludedHeaders.Contains(headerName, StringComparer.OrdinalIgnoreCase);
