@@ -638,7 +638,16 @@ public class ProxyService : IProxyService
             "X-Original-URL",
             "X-WAWS-Unencoded-URL",
             "X-Client-IP",
-            "X-Client-Port"
+            "X-Client-Port",
+            "CLIENT-IP",
+            "TOKEN-RELAY-ORIGIN",
+            "DISGUISED-HOST",
+            "X-ARR-LOG-ID",
+            "X-SITE-DEPLOYMENT-ID",
+            "Max-Forwards",
+            "traceparent",
+            "tracestate",
+            "newrelic"
         };
 
         return excludedHeaders.Contains(headerName, StringComparer.OrdinalIgnoreCase);
