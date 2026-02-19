@@ -242,5 +242,27 @@ public class QueryParamsHelperTests
         Assert.Equal("", result);
     }
 
+    [Fact]
+    public void ResolveQueryParamPlaceholders_UrlEncodedPlaceholders_DecodesAndResolves()
+    {
+        var configuredParams = new Dictionary<string, string>
+        {
+            ["wpwhreceivable_group"] = "group1",
+            ["wpwhreceivable_name"] = "name1",
+            ["wpwhreceivable"] = "recv1"
+        };
+
+        // %7B = { and %7D = } — this is what browsers send
+        var (result, error) = QueryParamsHelper.ResolveQueryParamPlaceholders(
+            "https://api.example.com/resource",
+            configuredParams,
+            "?wpwhreceivable_group=%7Bwpwhreceivable_group%7D&wpwhreceivable_name=%7Bwpwhreceivable_name%7D&wpwhreceivable=%7Bwpwhreceivable%7D");
+
+        Assert.Null(error);
+        Assert.Contains("wpwhreceivable_group=group1", result);
+        Assert.Contains("wpwhreceivable_name=name1", result);
+        Assert.Contains("wpwhreceivable=recv1", result);
+    }
+
     #endregion
 }

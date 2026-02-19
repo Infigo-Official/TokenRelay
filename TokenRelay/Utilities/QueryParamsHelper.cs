@@ -35,10 +35,12 @@ public static partial class QueryParamsHelper
         if (string.IsNullOrEmpty(requestQueryString))
             return (baseUrl, null);
 
-        // Strip leading '?' if present
+        // Strip leading '?' if present and decode URL-encoded characters
+        // (e.g., %7B/%7D → {/}) so that placeholder regex can match
         var qs = requestQueryString!.StartsWith('?')
             ? requestQueryString[1..]
             : requestQueryString;
+        qs = Uri.UnescapeDataString(qs);
 
         if (string.IsNullOrEmpty(qs))
             return (baseUrl, null);
