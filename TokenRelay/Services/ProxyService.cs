@@ -226,6 +226,12 @@ public class ProxyService : IProxyService
         forwardedRequest.Headers.TryAddWithoutValidation("TOKEN-RELAY-ORIGIN", clientIP);
         _logger.LogDebug("ProxyService: Added TOKEN-RELAY-ORIGIN header with client IP: {ClientIP}", clientIP);
 
+        // Ensure User-Agent is set on outgoing request
+        if (!forwardedRequest.Headers.Contains("User-Agent"))
+        {
+            forwardedRequest.Headers.TryAddWithoutValidation("User-Agent", "TokenRelay/1.0");
+        }
+
         // Copy request body if present
         if (context.Request.ContentLength > 0 ||
             context.Request.Headers.TransferEncoding.Any(te => te == "chunked"))
@@ -495,6 +501,12 @@ public class ProxyService : IProxyService
 
         // Add TOKEN-RELAY-ORIGIN header with client IP
         forwardedRequest.Headers.TryAddWithoutValidation("TOKEN-RELAY-ORIGIN", clientIP);
+
+        // Ensure User-Agent is set on outgoing request
+        if (!forwardedRequest.Headers.Contains("User-Agent"))
+        {
+            forwardedRequest.Headers.TryAddWithoutValidation("User-Agent", "TokenRelay/1.0");
+        }
 
         // Add TOKEN-RELAY-CHAIN header to indicate this is a chained request
         forwardedRequest.Headers.TryAddWithoutValidation("TOKEN-RELAY-CHAIN", "true");
