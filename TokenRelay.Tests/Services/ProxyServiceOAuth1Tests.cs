@@ -69,7 +69,42 @@ public class ProxyServiceOAuth1Tests
     }
 
     [Fact]
-    public void TargetConfig_SupportsQueryParams()
+    public void TargetConfig_SupportsVariables()
+    {
+        // Arrange & Act
+        var target = new TargetConfig
+        {
+            Endpoint = "https://api.example.com/resource",
+            Variables = new Dictionary<string, string>
+            {
+                ["script"] = "customscript_test",
+                ["deploy"] = "customdeploy_test"
+            }
+        };
+
+        // Assert
+        Assert.NotNull(target.Variables);
+        Assert.Equal(2, target.Variables.Count);
+        Assert.Equal("customscript_test", target.Variables["script"]);
+        Assert.Equal("customdeploy_test", target.Variables["deploy"]);
+    }
+
+    [Fact]
+    public void TargetConfig_Variables_DefaultsToEmptyDictionary()
+    {
+        // Arrange & Act
+        var target = new TargetConfig
+        {
+            Endpoint = "https://api.example.com/resource"
+        };
+
+        // Assert
+        Assert.NotNull(target.Variables);
+        Assert.Empty(target.Variables);
+    }
+
+    [Fact]
+    public void TargetConfig_QueryParams_BackwardCompat_MergesIntoVariables()
     {
         // Arrange & Act
         var target = new TargetConfig
@@ -82,25 +117,34 @@ public class ProxyServiceOAuth1Tests
             }
         };
 
-        // Assert
-        Assert.NotNull(target.QueryParams);
-        Assert.Equal(2, target.QueryParams.Count);
-        Assert.Equal("customscript_test", target.QueryParams["script"]);
-        Assert.Equal("customdeploy_test", target.QueryParams["deploy"]);
+        // Assert - QueryParams setter should merge into Variables
+        Assert.Equal(2, target.Variables.Count);
+        Assert.Equal("customscript_test", target.Variables["script"]);
+        Assert.Equal("customdeploy_test", target.Variables["deploy"]);
     }
 
     [Fact]
-    public void TargetConfig_QueryParams_DefaultsToEmptyDictionary()
+    public void TargetConfig_QueryParams_BackwardCompat_DoesNotOverwriteExistingVariables()
     {
         // Arrange & Act
         var target = new TargetConfig
         {
-            Endpoint = "https://api.example.com/resource"
+            Endpoint = "https://api.example.com/resource",
+            Variables = new Dictionary<string, string>
+            {
+                ["script"] = "existing_script"
+            }
+        };
+        target.QueryParams = new Dictionary<string, string>
+        {
+            ["script"] = "overwritten_script",
+            ["deploy"] = "new_deploy"
         };
 
-        // Assert
-        Assert.NotNull(target.QueryParams);
-        Assert.Empty(target.QueryParams);
+        // Assert - TryAdd should NOT overwrite existing "script"
+        Assert.Equal(2, target.Variables.Count);
+        Assert.Equal("existing_script", target.Variables["script"]);
+        Assert.Equal("new_deploy", target.Variables["deploy"]);
     }
 
     [Fact]
