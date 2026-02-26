@@ -82,19 +82,19 @@ public class ProxyService : IProxyService
         // Build target URL
         var targetUrl = CombineUrls(target.Endpoint, remainingPath);
 
-        // Resolve query parameter placeholders from configuration
+        // Resolve variable placeholders in query string from configuration
         if (!string.IsNullOrEmpty(context.Request.QueryString.Value))
         {
-            var (resolvedUrl, error) = QueryParamsHelper.ResolveQueryParamPlaceholders(
+            var (resolvedUrl, error) = VariablesHelper.ResolveVariablePlaceholders(
                 targetUrl,
-                target.QueryParams,
+                target.Variables,
                 context.Request.QueryString.Value);
 
             if (error != null)
                 throw new ArgumentException(error);
 
             targetUrl = resolvedUrl;
-            _logger.LogDebug("ProxyService: Resolved query parameter placeholders");
+            _logger.LogDebug("ProxyService: Resolved variable placeholders in query string");
         }
 
         _logger.LogDebug("ProxyService: Final target URL constructed: {TargetUrl}", targetUrl);
@@ -253,8 +253,22 @@ public class ProxyService : IProxyService
                 // Small body: buffer into memory
                 using var memoryStream = new MemoryStream((int)contentLength);
                 await context.Request.Body.CopyToAsync(memoryStream);
-                content = new ByteArrayContent(memoryStream.ToArray());
-                _logger.LogDebug("ProxyService: Buffered {BufferedSize} bytes from request body (small body path)", memoryStream.Length);
+                var bodyBytes = memoryStream.ToArray();
+
+                // Replace {{variable}} placeholders in JSON bodies
+                if (target.Variables.Count > 0 && IsJsonContentType(context.Request.ContentType))
+                {
+                    var bodyText = Encoding.UTF8.GetString(bodyBytes);
+                    var resolved = VariablesHelper.ResolveBodyPlaceholders(bodyText, target.Variables);
+                    if (!ReferenceEquals(bodyText, resolved))
+                    {
+                        bodyBytes = Encoding.UTF8.GetBytes(resolved);
+                        _logger.LogDebug("ProxyService: Resolved variable placeholders in JSON request body");
+                    }
+                }
+
+                content = new ByteArrayContent(bodyBytes);
+                _logger.LogDebug("ProxyService: Buffered {BufferedSize} bytes from request body (small body path)", bodyBytes.Length);
             }
             else
             {
@@ -675,6 +689,12 @@ public class ProxyService : IProxyService
         };
 
         return excludedHeaders.Contains(headerName, StringComparer.OrdinalIgnoreCase);
+    }
+
+    private static bool IsJsonContentType(string? contentType)
+    {
+        return contentType != null &&
+               contentType.Contains("application/json", StringComparison.OrdinalIgnoreCase);
     }
 
     private static bool IsContentHeader(string headerName)

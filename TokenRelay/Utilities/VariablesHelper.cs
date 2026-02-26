@@ -4,11 +4,11 @@ using System.Web;
 namespace TokenRelay.Utilities;
 
 /// <summary>
-/// Helper class for resolving query parameter placeholders from configuration.
-/// Configured query params act as a lookup table — values are only injected when
-/// the incoming request explicitly references them via {paramName} syntax.
+/// Helper class for resolving variable placeholders from configuration.
+/// Variables act as a lookup table — values are injected when the incoming request
+/// references them via {name} syntax in query strings, or {{name}} syntax in JSON bodies.
 /// </summary>
-public static partial class QueryParamsHelper
+public static partial class VariablesHelper
 {
     [GeneratedRegex(@"^\{(\w+)\}$")]
     private static partial Regex StandalonePlaceholderRegex();
@@ -16,16 +16,19 @@ public static partial class QueryParamsHelper
     [GeneratedRegex(@"\{(\w+)\}")]
     private static partial Regex ValuePlaceholderRegex();
 
+    [GeneratedRegex(@"\{\{(\w+)\}\}")]
+    private static partial Regex BodyPlaceholderRegex();
+
     /// <summary>
-    /// Resolves query parameter placeholders in the request query string using configured values.
+    /// Resolves variable placeholders in the request query string using configured values.
     /// </summary>
     /// <param name="baseUrl">The target URL (may already include query string)</param>
-    /// <param name="configuredParams">Query params from target configuration (lookup table)</param>
+    /// <param name="variables">Variables from target configuration (lookup table)</param>
     /// <param name="requestQueryString">Query string from incoming request (e.g., "?{script}&amp;name=foo")</param>
     /// <returns>Tuple of (resolved URL, error message if any placeholder is unknown)</returns>
-    public static (string url, string? error) ResolveQueryParamPlaceholders(
+    public static (string url, string? error) ResolveVariablePlaceholders(
         string baseUrl,
-        Dictionary<string, string>? configuredParams,
+        Dictionary<string, string>? variables,
         string? requestQueryString)
     {
         if (string.IsNullOrEmpty(baseUrl))
@@ -62,7 +65,7 @@ public static partial class QueryParamsHelper
                 if (standaloneMatch.Success)
                 {
                     var name = standaloneMatch.Groups[1].Value;
-                    if (configuredParams == null || !configuredParams.TryGetValue(name, out var configValue))
+                    if (variables == null || !variables.TryGetValue(name, out var configValue))
                         return (baseUrl, $"Unknown query parameter placeholder: {name}");
 
                     resolvedParts.Add($"{Uri.EscapeDataString(name)}={Uri.EscapeDataString(configValue)}");
@@ -84,7 +87,7 @@ public static partial class QueryParamsHelper
                 if (keyMatch.Success)
                 {
                     var name = keyMatch.Groups[1].Value;
-                    if (configuredParams == null || !configuredParams.TryGetValue(name, out var configValue))
+                    if (variables == null || !variables.TryGetValue(name, out var configValue))
                         return (baseUrl, $"Unknown query parameter placeholder: {name}");
 
                     resolvedParts.Add($"{Uri.EscapeDataString(name)}={Uri.EscapeDataString(configValue)}");
@@ -97,7 +100,7 @@ public static partial class QueryParamsHelper
                     var resolvedValue = valueMatcher.Replace(value, match =>
                     {
                         var name = match.Groups[1].Value;
-                        if (configuredParams == null || !configuredParams.TryGetValue(name, out var configValue))
+                        if (variables == null || !variables.TryGetValue(name, out var configValue))
                             return $"\0ERROR:{name}";
 
                         return Uri.EscapeDataString(configValue);
@@ -125,5 +128,25 @@ public static partial class QueryParamsHelper
             return ($"{baseUrl}&{resolvedQs}", null);
 
         return ($"{baseUrl}?{resolvedQs}", null);
+    }
+
+    /// <summary>
+    /// Resolves {{variableName}} placeholders in a JSON request body using configured variables.
+    /// Unknown placeholders are left as-is (not an error).
+    /// Single-brace {name} placeholders are NOT matched.
+    /// </summary>
+    /// <param name="body">The JSON body string</param>
+    /// <param name="variables">Variables from target configuration</param>
+    /// <returns>The body with known placeholders replaced</returns>
+    public static string ResolveBodyPlaceholders(string? body, Dictionary<string, string>? variables)
+    {
+        if (string.IsNullOrEmpty(body) || variables == null || variables.Count == 0)
+            return body ?? string.Empty;
+
+        return BodyPlaceholderRegex().Replace(body, match =>
+        {
+            var name = match.Groups[1].Value;
+            return variables.TryGetValue(name, out var value) ? value : match.Value;
+        });
     }
 }

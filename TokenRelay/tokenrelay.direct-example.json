@@ -80,7 +80,7 @@
       "netsuite-restlet": {
         "enabled": true,
         "endpoint": "https://1234567.restlets.api.netsuite.com/app/site/hosting/restlet.nl",
-        "description": "NetSuite RESTlet with OAuth1 authentication and queryParams for script/deploy routing",
+        "description": "NetSuite RESTlet with OAuth1 authentication and variables for script/deploy routing",
         "authType": "oauth1",
         "authData": {
           "consumer_key": "your-consumer-key",
@@ -90,7 +90,7 @@
           "realm": "1234567_SB1",
           "signature_method": "HMAC-SHA256"
         },
-        "queryParams": {
+        "variables": {
           "script": "customscript_your_restlet",
           "deploy": "customdeploy_your_restlet"
         },

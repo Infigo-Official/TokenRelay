@@ -102,12 +102,26 @@ public class TargetConfig
     public Dictionary<string, string> AuthData { get; set; } = new();
 
     /// <summary>
-    /// Optional query parameters to append to the target URL.
-    /// These are merged with any query parameters from the incoming request.
-    /// Request parameters take precedence over configured parameters.
+    /// Variables used for placeholder substitution in query strings ({name}) and JSON bodies ({{name}}).
     /// Useful for NetSuite script/deploy params, API versioning, etc.
     /// </summary>
-    public Dictionary<string, string> QueryParams { get; set; } = new();
+    public Dictionary<string, string> Variables { get; set; } = new();
+
+    /// <summary>
+    /// Backward compatibility: "queryParams" in config JSON merges into Variables via TryAdd.
+    /// </summary>
+    [JsonIgnore]
+    public Dictionary<string, string> QueryParams
+    {
+        set
+        {
+            if (value != null)
+            {
+                foreach (var kvp in value)
+                    Variables.TryAdd(kvp.Key, kvp.Value);
+            }
+        }
+    }
 }
 
 /// <summary>
