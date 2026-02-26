@@ -142,7 +142,8 @@ public class OAuth1Service : IOAuth1Service
                 normalizedUrl,
                 allParams);
 
-            _logger.LogDebug("OAuth1Service: Generated signature base string for target '{TargetName}'", targetName);
+            _logger.LogDebug("OAuth1Service: Normalized URL: {NormalizedUrl}", normalizedUrl);
+            _logger.LogDebug("OAuth1Service: Signature base string: {SignatureBaseString}", signatureBaseString);
 
             // Generate signature
             var signature = GenerateSignature(
@@ -223,20 +224,11 @@ public class OAuth1Service : IOAuth1Service
     }
 
     /// <summary>
-    /// Generates a cryptographically secure random nonce with timestamp prefix for debugging.
-    /// Format: {timestamp_ms}_{random_bytes}
+    /// Generates a unique nonce using a GUID.
     /// </summary>
     public static string GenerateNonce()
     {
-        var timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-        var bytes = new byte[16];
-        using var rng = RandomNumberGenerator.Create();
-        rng.GetBytes(bytes);
-        var randomPart = Convert.ToBase64String(bytes)
-            .Replace("+", "")
-            .Replace("/", "")
-            .Replace("=", "");
-        return $"{timestamp}{randomPart}";
+        return Guid.NewGuid().ToString("N");
     }
 
     /// <summary>
@@ -297,8 +289,8 @@ public class OAuth1Service : IOAuth1Service
     {
         // Construct the signing key: consumer_secret&token_secret
         var signingKey = $"{PercentEncode(consumerSecret)}&{PercentEncode(tokenSecret)}";
-        var keyBytes = Encoding.UTF8.GetBytes(signingKey);
-        var dataBytes = Encoding.UTF8.GetBytes(signatureBaseString);
+        var keyBytes = Encoding.ASCII.GetBytes(signingKey);
+        var dataBytes = Encoding.ASCII.GetBytes(signatureBaseString);
 
         byte[] hashBytes;
 
@@ -381,20 +373,13 @@ public class OAuth1Service : IOAuth1Service
         string signature,
         string realm)
     {
-        var headerParams = new List<string>
-        {
-            $"realm=\"{PercentEncode(realm)}\""
-        };
-
-        // Add oauth parameters in alphabetical order
-        foreach (var param in oauthParams.OrderBy(p => p.Key, StringComparer.Ordinal))
-        {
-            headerParams.Add($"{PercentEncode(param.Key)}=\"{PercentEncode(param.Value)}\"");
-        }
-
-        // Add signature last
-        headerParams.Add($"oauth_signature=\"{PercentEncode(signature)}\"");
-
-        return "OAuth " + string.Join(", ", headerParams);
+        return "OAuth realm=\"" + PercentEncode(realm) + "\"," +
+               "oauth_consumer_key=\"" + PercentEncode(oauthParams["oauth_consumer_key"]) + "\"," +
+               "oauth_token=\"" + PercentEncode(oauthParams["oauth_token"]) + "\"," +
+               "oauth_signature_method=\"" + PercentEncode(oauthParams["oauth_signature_method"]) + "\"," +
+               "oauth_timestamp=\"" + PercentEncode(oauthParams["oauth_timestamp"]) + "\"," +
+               "oauth_nonce=\"" + PercentEncode(oauthParams["oauth_nonce"]) + "\"," +
+               "oauth_version=\"" + PercentEncode(oauthParams["oauth_version"]) + "\"," +
+               "oauth_signature=\"" + PercentEncode(signature) + "\"";
     }
 }
