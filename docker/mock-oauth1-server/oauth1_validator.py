@@ -119,8 +119,8 @@ def generate_signature(base_string: str, consumer_secret: str, token_secret: str
     """
     # Construct the signing key: consumer_secret&token_secret
     signing_key = f'{percent_encode(consumer_secret)}&{percent_encode(token_secret)}'
-    key_bytes = signing_key.encode('utf-8')
-    data_bytes = base_string.encode('utf-8')
+    key_bytes = signing_key.encode('ascii')
+    data_bytes = base_string.encode('ascii')
 
     if signature_method == 'HMAC-SHA256':
         hash_bytes = hmac.new(key_bytes, data_bytes, hashlib.sha256).digest()

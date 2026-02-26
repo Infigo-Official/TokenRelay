@@ -51,6 +51,8 @@ CodeCoverage/
 
 # Security: Exclude sensitive configuration files
 tokenrelay.json
+tokenrelay.development.json
+appsettings.Development.json
 docker/config/tokenrelay.json
 .env
 docker/.env

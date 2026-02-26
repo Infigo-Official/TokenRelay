@@ -137,14 +137,14 @@ public class ProxyService : IProxyService
         // Add incoming request headers to NewRelic for observability
         transaction?.AddCustomAttribute("tokenrelay.request_headers", SanitizationHelper.SerializeHeadersForTelemetry(context.Request.Headers));
 
-        // Add target-specific headers
+        // Add target-specific headers (replace any existing values from the incoming request)
         if (target.Headers.Any())
         {
             _logger.LogDebug("ProxyService: Adding {CustomHeaderCount} target-specific headers", target.Headers.Count);
             foreach (var header in target.Headers)
             {
                 forwardedRequest.Headers.TryAddWithoutValidation(header.Key, header.Value);
-                _logger.LogDebug("ProxyService: Added custom header '{HeaderName}': '{HeaderValue}'",
+                _logger.LogDebug("ProxyService: Set custom header '{HeaderName}': '{HeaderValue}'",
                     header.Key, SanitizeHeaderValueForLogging(header.Key, header.Value));
             }
         }
@@ -301,6 +301,17 @@ public class ProxyService : IProxyService
             _logger.LogDebug("ProxyService: Request has no body content");
         }
 
+        // Workaround for NetSuite API: GET requests without a Content-Type: application/json header
+        // and an empty body are rejected. When X-Crazy-Beautify-API-Handling is present, we force an
+        // empty JSON body so NetSuite accepts the request.
+        if (context.Request.Headers.ContainsKey("X-Crazy-Beautify-API-Handling"))
+        {
+            _logger.LogDebug("ProxyService: X-Crazy-Beautify-API-Handling header detected, setting empty JSON body for NetSuite compatibility");
+            forwardedRequest.Content = new StringContent("");
+            forwardedRequest.Content.Headers.ContentType =
+                new System.Net.Http.Headers.MediaTypeHeaderValue("application/json");
+        }
+        
         try
         {
             _logger.LogInformation("ProxyService: Forwarding {Method} request to {TargetUrl} for target '{TargetName}' from {ClientIP}",
@@ -449,7 +460,7 @@ public class ProxyService : IProxyService
 
         _logger.LogDebug("ProxyService: Chain mode - copied {HeaderCount} headers", headerCount);
 
-        // Add chain target-specific headers
+        // Add chain target-specific headers (replace any existing values from the incoming request)
         if (chainTarget.Headers.Any())
         {
             _logger.LogDebug("ProxyService: Chain mode - adding {ChainHeaderCount} chain-specific headers", chainTarget.Headers.Count);
@@ -659,7 +670,8 @@ public class ProxyService : IProxyService
             "Max-Forwards",
             "traceparent",
             "tracestate",
-            "newrelic"
+            "newrelic",
+            "X-Crazy-Beautify-API-Handling"
         };
 
         return excludedHeaders.Contains(headerName, StringComparer.OrdinalIgnoreCase);
