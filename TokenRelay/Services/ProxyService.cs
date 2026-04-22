@@ -80,6 +80,18 @@ public class ProxyService : IProxyService
         _logger.LogDebug("ProxyService: HTTP client configured with timeout {TimeoutSeconds}s", proxyConfig.TimeoutSeconds);
 
         // Build target URL
+        if (target.Variables.Count > 0)
+        {
+            var (resolvedPath, pathError) = VariablesHelper.ResolvePathPlaceholders(remainingPath, target.Variables);
+            if (pathError != null)
+                throw new ArgumentException(pathError);
+            if (!ReferenceEquals(remainingPath, resolvedPath))
+            {
+                remainingPath = resolvedPath;
+                _logger.LogDebug("ProxyService: Resolved variable placeholders in path");
+            }
+        }
+
         var targetUrl = CombineUrls(target.Endpoint, remainingPath);
 
         // Resolve variable placeholders in query string from configuration
