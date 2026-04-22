@@ -6,7 +6,7 @@ namespace TokenRelay.Utilities;
 /// <summary>
 /// Helper class for resolving variable placeholders from configuration.
 /// Variables act as a lookup table — values are injected when the incoming request
-/// references them via {name} syntax in query strings, or {{name}} syntax in JSON bodies.
+/// references them via {name} syntax in query strings and URL paths, or {{name}} syntax in JSON bodies.
 /// </summary>
 public static partial class VariablesHelper
 {
@@ -18,6 +18,9 @@ public static partial class VariablesHelper
 
     [GeneratedRegex(@"\{\{(\w+)\}\}")]
     private static partial Regex BodyPlaceholderRegex();
+
+    [GeneratedRegex(@"\{(\w+)\}")]
+    private static partial Regex PathPlaceholderRegex();
 
     /// <summary>
     /// Resolves variable placeholders in the request query string using configured values.
@@ -148,5 +151,46 @@ public static partial class VariablesHelper
             var name = match.Groups[1].Value;
             return variables.TryGetValue(name, out var value) ? value : match.Value;
         });
+    }
+
+    /// <summary>
+    /// Resolves {variableName} placeholders in a URI path using configured variables.
+    /// Unknown placeholders produce an error — they would result in a broken URL.
+    /// Values are URL-encoded via Uri.EscapeDataString.
+    /// </summary>
+    /// <param name="path">The remaining path portion of the request URL</param>
+    /// <param name="variables">Variables from target configuration</param>
+    /// <returns>Tuple of (resolved path, error message if any placeholder is unknown)</returns>
+    public static (string path, string? error) ResolvePathPlaceholders(
+        string? path,
+        Dictionary<string, string>? variables)
+    {
+        if (string.IsNullOrEmpty(path))
+            return (path ?? string.Empty, null);
+
+        var regex = PathPlaceholderRegex();
+        if (!regex.IsMatch(path))
+            return (path, null);
+
+        string? errorName = null;
+        var resolved = regex.Replace(path, match =>
+        {
+            if (errorName != null)
+                return match.Value;
+
+            var name = match.Groups[1].Value;
+            if (variables == null || !variables.TryGetValue(name, out var value))
+            {
+                errorName = name;
+                return match.Value;
+            }
+
+            return Uri.EscapeDataString(value);
+        });
+
+        if (errorName != null)
+            return (path, $"Unknown path placeholder: {errorName}");
+
+        return (resolved, null);
     }
 }

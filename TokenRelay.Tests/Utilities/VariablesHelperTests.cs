@@ -353,4 +353,99 @@ public class VariablesHelperTests
     }
 
     #endregion
+
+    #region Path Placeholder Tests
+
+    [Fact]
+    public void ResolvePathPlaceholders_StandaloneSegment_Replaces()
+    {
+        var (result, error) = VariablesHelper.ResolvePathPlaceholders("api/{script}/run", ConfiguredVars);
+
+        Assert.Null(error);
+        Assert.Equal("api/customscript_test/run", result);
+    }
+
+    [Fact]
+    public void ResolvePathPlaceholders_MultiplePlaceholders_ReplacesAll()
+    {
+        var (result, error) = VariablesHelper.ResolvePathPlaceholders("api/{script}/{deploy}", ConfiguredVars);
+
+        Assert.Null(error);
+        Assert.Equal("api/customscript_test/customdeploy_test", result);
+    }
+
+    [Fact]
+    public void ResolvePathPlaceholders_PlaceholderInsideSegment_Replaces()
+    {
+        var (result, error) = VariablesHelper.ResolvePathPlaceholders("api/v{deploy}-final", ConfiguredVars);
+
+        Assert.Null(error);
+        Assert.Equal("api/vcustomdeploy_test-final", result);
+    }
+
+    [Fact]
+    public void ResolvePathPlaceholders_UnknownPlaceholder_ReturnsError()
+    {
+        var (_, error) = VariablesHelper.ResolvePathPlaceholders("api/{foo}/resource", ConfiguredVars);
+
+        Assert.NotNull(error);
+        Assert.Contains("foo", error);
+    }
+
+    [Fact]
+    public void ResolvePathPlaceholders_NoPlaceholders_PassesThrough()
+    {
+        var (result, error) = VariablesHelper.ResolvePathPlaceholders("api/plain/path", ConfiguredVars);
+
+        Assert.Null(error);
+        Assert.Equal("api/plain/path", result);
+    }
+
+    [Fact]
+    public void ResolvePathPlaceholders_EmptyPath_ReturnsUnchanged()
+    {
+        var (result, error) = VariablesHelper.ResolvePathPlaceholders("", ConfiguredVars);
+
+        Assert.Null(error);
+        Assert.Equal("", result);
+    }
+
+    [Fact]
+    public void ResolvePathPlaceholders_NullPath_ReturnsUnchanged()
+    {
+        var (result, error) = VariablesHelper.ResolvePathPlaceholders(null, ConfiguredVars);
+
+        Assert.Null(error);
+        Assert.Equal(string.Empty, result);
+    }
+
+    [Fact]
+    public void ResolvePathPlaceholders_ValueWithSpecialChars_UrlEncodes()
+    {
+        var vars = new Dictionary<string, string> { ["tenant"] = "a b/c" };
+        var (result, error) = VariablesHelper.ResolvePathPlaceholders("api/{tenant}/data", vars);
+
+        Assert.Null(error);
+        Assert.Equal("api/a%20b%2Fc/data", result);
+    }
+
+    [Fact]
+    public void ResolvePathPlaceholders_NullVariables_UnknownPlaceholderReturnsError()
+    {
+        var (_, error) = VariablesHelper.ResolvePathPlaceholders("api/{script}/run", null);
+
+        Assert.NotNull(error);
+        Assert.Contains("script", error);
+    }
+
+    [Fact]
+    public void ResolvePathPlaceholders_EmptyVariables_UnknownPlaceholderReturnsError()
+    {
+        var (_, error) = VariablesHelper.ResolvePathPlaceholders("api/{script}/run", new Dictionary<string, string>());
+
+        Assert.NotNull(error);
+        Assert.Contains("script", error);
+    }
+
+    #endregion
 }

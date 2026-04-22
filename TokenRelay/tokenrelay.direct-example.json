@@ -121,6 +121,17 @@
         "headers": {
           "Content-Type": "application/json"
         }
+      },
+      "tenant-api": {
+        "enabled": true,
+        "endpoint": "https://api.example.com",
+        "description": "Path placeholder example — client hits /proxy/tenants/{tenantId}/users, TokenRelay rewrites the path segment from variables",
+        "variables": {
+          "tenantId": "acme-prod-42"
+        },
+        "headers": {
+          "Accept": "application/json"
+        }
       }
     }
   },
