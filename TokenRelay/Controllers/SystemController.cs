@@ -6,6 +6,10 @@ using TokenRelay.Services;
 using Microsoft.Extensions.Logging;
 using System.Linq;
 using System.Text.RegularExpressions;
+using System.Net.Security;
+using System.Net.Sockets;
+using System.Security.Authentication;
+using System.Security.Cryptography.X509Certificates;
 
 namespace TokenRelay.Controllers;
 
@@ -395,6 +399,206 @@ public class SystemController : ControllerBase
             _logger.LogError(ex, "SystemController: Error performing nslookup for '{Domain}' from {ClientIP}", domain, clientIP);
             return StatusCode(500, new { error = "Failed to perform DNS lookup", message = ex.Message });
         }
+    }
+
+    /// <summary>
+    /// Inspect the TLS handshake and X.509 certificate presented by a host
+    /// </summary>
+    /// <remarks>
+    /// Opens a raw TLS connection to the host (native .NET SslStream, no external tools)
+    /// and reports the negotiated protocol/cipher plus the served certificate chain.
+    /// Certificate validation is intentionally bypassed so expired, self-signed, or
+    /// otherwise-invalid certificates can still be inspected. Nothing is proxied and no
+    /// application data is sent.
+    /// - tls: negotiated protocol version (e.g. Tls12, Tls13)
+    /// - cipher: negotiated cipher suite, algorithm, strength, hash, key exchange
+    /// - certificate: subject, issuer, validity, thumbprint, SANs, key info, expiry
+    /// - chain: the certificates the server sent, leaf-first
+    /// - validationErrors: policy errors that a normal client would reject
+    /// </remarks>
+    /// <param name="host">The host to connect to (e.g. api.example.com)</param>
+    /// <param name="port">TLS port (default 443)</param>
+    /// <returns>TLS handshake and certificate details</returns>
+    [HttpGet("diagnostics/tls/{host}")]
+    [ProducesResponseType(typeof(object), 200)]
+    [ProducesResponseType(400)]
+    [ProducesResponseType(500)]
+    public async Task<ActionResult> TlsCheck(string host, [FromQuery] int port = 443)
+    {
+        var clientIP = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+
+        // Sanitize host input (same rules as DNS lookup)
+        if (string.IsNullOrWhiteSpace(host) || !IsValidDomain(host))
+        {
+            _logger.LogWarning("SystemController: Invalid host '{Host}' for tls check from {ClientIP}", host, clientIP);
+            return BadRequest(new { error = "Invalid host format" });
+        }
+
+        if (port < 1 || port > 65535)
+        {
+            _logger.LogWarning("SystemController: Invalid port '{Port}' for tls check from {ClientIP}", port, clientIP);
+            return BadRequest(new { error = "Port must be between 1 and 65535" });
+        }
+
+        _logger.LogDebug("SystemController: TLS check request for '{Host}:{Port}' from {ClientIP}", host, port, clientIP);
+
+        try
+        {
+            var timeoutSeconds = _configService.GetConfiguration().Proxy.TimeoutSeconds;
+            if (timeoutSeconds <= 0) timeoutSeconds = 15;
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(timeoutSeconds));
+
+            X509Certificate2? leaf = null;
+            var chainCerts = new List<X509Certificate2>();
+            SslPolicyErrors policyErrors = SslPolicyErrors.None;
+
+            using var tcpClient = new TcpClient();
+            await tcpClient.ConnectAsync(host, port, cts.Token);
+
+            using var sslStream = new SslStream(
+                tcpClient.GetStream(),
+                leaveInnerStreamOpen: false,
+                userCertificateValidationCallback: (_, cert, chain, errors) =>
+                {
+                    // Capture everything but never reject, so invalid certs are still inspectable
+                    policyErrors = errors;
+                    if (cert != null) leaf = new X509Certificate2(cert);
+                    if (chain != null)
+                    {
+                        foreach (var element in chain.ChainElements)
+                        {
+                            chainCerts.Add(new X509Certificate2(element.Certificate));
+                        }
+                    }
+                    return true;
+                });
+
+            await sslStream.AuthenticateAsClientAsync(new SslClientAuthenticationOptions
+            {
+                TargetHost = host,
+                // Offer everything the platform supports so the server picks its best
+                EnabledSslProtocols = SslProtocols.None
+            }, cts.Token);
+
+            // Fall back to RemoteCertificate if the callback certificate was null
+            if (leaf == null && sslStream.RemoteCertificate != null)
+            {
+                leaf = new X509Certificate2(sslStream.RemoteCertificate);
+            }
+
+            var result = new Dictionary<string, object?>
+            {
+                ["host"] = host,
+                ["port"] = port,
+                ["tls"] = new Dictionary<string, object?>
+                {
+                    ["protocol"] = sslStream.SslProtocol.ToString(),
+                    ["isMutuallyAuthenticated"] = sslStream.IsMutuallyAuthenticated
+                },
+                ["cipher"] = GetCipherInfo(sslStream),
+                ["validationErrors"] = policyErrors == SslPolicyErrors.None
+                    ? Array.Empty<string>()
+                    : policyErrors.ToString().Split(", ", StringSplitOptions.RemoveEmptyEntries),
+                ["certificate"] = leaf != null ? GetCertificateInfo(leaf) : null,
+                ["chain"] = chainCerts.Select(GetCertificateInfo).ToList()
+            };
+
+            // Dispose the captured certificates
+            leaf?.Dispose();
+            foreach (var c in chainCerts) c.Dispose();
+
+            _logger.LogInformation("SystemController: TLS check completed for '{Host}:{Port}' from {ClientIP}", host, port, clientIP);
+
+            return Ok(result);
+        }
+        catch (OperationCanceledException)
+        {
+            _logger.LogWarning("SystemController: TLS check timed out for '{Host}:{Port}' from {ClientIP}", host, port, clientIP);
+            return StatusCode(504, new { error = "TLS connection timed out", host, port });
+        }
+        catch (Exception ex) when (ex is SocketException or AuthenticationException or IOException)
+        {
+            _logger.LogWarning(ex, "SystemController: TLS handshake failed for '{Host}:{Port}' from {ClientIP}", host, port, clientIP);
+            return StatusCode(502, new { error = "TLS handshake failed", message = ex.Message, host, port });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "SystemController: Error performing TLS check for '{Host}:{Port}' from {ClientIP}", host, port, clientIP);
+            return StatusCode(500, new { error = "Failed to perform TLS check", message = ex.Message });
+        }
+    }
+
+    private static Dictionary<string, object?> GetCipherInfo(SslStream sslStream)
+    {
+        var cipher = new Dictionary<string, object?>();
+
+        // NegotiatedCipherSuite is not supported on Windows (dev); guard it
+        try
+        {
+            cipher["suite"] = sslStream.NegotiatedCipherSuite.ToString();
+        }
+        catch (PlatformNotSupportedException)
+        {
+            cipher["suite"] = "unavailable (platform)";
+        }
+
+#pragma warning disable SYSLIB0058 // legacy cipher members, still informative for diagnostics
+        cipher["algorithm"] = sslStream.CipherAlgorithm.ToString();
+        cipher["strengthBits"] = sslStream.CipherStrength;
+        cipher["hashAlgorithm"] = sslStream.HashAlgorithm.ToString();
+        cipher["hashStrengthBits"] = sslStream.HashStrength;
+        cipher["keyExchangeAlgorithm"] = sslStream.KeyExchangeAlgorithm.ToString();
+        cipher["keyExchangeStrengthBits"] = sslStream.KeyExchangeStrength;
+#pragma warning restore SYSLIB0058
+
+        return cipher;
+    }
+
+    private static Dictionary<string, object?> GetCertificateInfo(X509Certificate2 cert)
+    {
+        var now = DateTime.UtcNow;
+        var notBefore = cert.NotBefore.ToUniversalTime();
+        var notAfter = cert.NotAfter.ToUniversalTime();
+
+        // Subject Alternative Names live in extension OID 2.5.29.17
+        var sans = new List<string>();
+        foreach (var ext in cert.Extensions)
+        {
+            if (ext.Oid?.Value == "2.5.29.17")
+            {
+                sans.AddRange(ext.Format(true)
+                    .Split('\n', StringSplitOptions.RemoveEmptyEntries)
+                    .Select(s => s.Trim())
+                    .Where(s => s.Length > 0));
+            }
+        }
+
+        int? keySize = null;
+        try
+        {
+            using var rsa = cert.GetRSAPublicKey();
+            using var ecdsa = cert.GetECDsaPublicKey();
+            keySize = rsa?.KeySize ?? ecdsa?.KeySize;
+        }
+        catch { /* unsupported key type */ }
+
+        return new Dictionary<string, object?>
+        {
+            ["subject"] = cert.Subject,
+            ["issuer"] = cert.Issuer,
+            ["serialNumber"] = cert.SerialNumber,
+            ["thumbprint"] = cert.Thumbprint,
+            ["version"] = cert.Version,
+            ["notBefore"] = notBefore,
+            ["notAfter"] = notAfter,
+            ["daysUntilExpiry"] = Math.Floor((notAfter - now).TotalDays),
+            ["isExpired"] = now > notAfter,
+            ["isNotYetValid"] = now < notBefore,
+            ["signatureAlgorithm"] = cert.SignatureAlgorithm.FriendlyName ?? cert.SignatureAlgorithm.Value,
+            ["publicKeyAlgorithm"] = cert.PublicKey.Oid.FriendlyName ?? cert.PublicKey.Oid.Value,
+            ["keySizeBits"] = keySize,
+            ["subjectAlternativeNames"] = sans
+        };
     }
 
     private static async Task<string> RunCommandAsync(string command, string arguments)
