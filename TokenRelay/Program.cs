@@ -61,10 +61,21 @@ builder.Services.AddHttpClient(HttpClientService.IgnoreCertsClientName)
         PooledConnectionLifetime = TimeSpan.FromMinutes(5),
         PooledConnectionIdleTimeout = TimeSpan.FromMinutes(2),
         MaxConnectionsPerServer = 100,
-        // WARNING: Certificate validation disabled - use only in dev/test
+        // WARNING: insecure mode - use only for dev/test targets (IgnoreCertificateValidation=true).
+        // Disables cert validation AND widens the allowed TLS versions so we can talk to legacy
+        // endpoints (old IIS/Schannel boxes) that a default OpenSSL 3 client rejects with
+        // "sslv3 alert handshake failure". Scoped to this named client only - the standard client
+        // keeps secure defaults.
         SslOptions = new System.Net.Security.SslClientAuthenticationOptions
         {
-            RemoteCertificateValidationCallback = (sender, certificate, chain, sslPolicyErrors) => true
+            RemoteCertificateValidationCallback = (sender, certificate, chain, sslPolicyErrors) => true,
+#pragma warning disable SYSLIB0039 // TLS 1.0/1.1 are obsolete - intentionally enabled for legacy servers
+            EnabledSslProtocols =
+                System.Security.Authentication.SslProtocols.Tls13 |
+                System.Security.Authentication.SslProtocols.Tls12 |
+                System.Security.Authentication.SslProtocols.Tls11 |
+                System.Security.Authentication.SslProtocols.Tls
+#pragma warning restore SYSLIB0039
         }
     })
     .AddHttpMessageHandler<HttpLoggingHandler>()

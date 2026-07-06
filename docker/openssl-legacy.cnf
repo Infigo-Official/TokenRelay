@@ -1,0 +1,28 @@
+# Legacy OpenSSL config for TokenRelay containers that must reach OLD TLS servers
+# (e.g. legacy IIS/Schannel CERM box that fails with "sslv3 alert handshake failure").
+#
+# .NET on Linux uses the system OpenSSL, which honors OPENSSL_CONF. Point OPENSSL_CONF
+# at this file to lower the security level so old protocols/ciphers/signatures are allowed.
+#
+# SECURITY: this weakens TLS for the WHOLE process. Only use on a dedicated proxy box
+# whose job is to reach legacy endpoints. Do NOT ship as the default.
+#
+# Enable in docker-compose:
+#   environment:
+#     - OPENSSL_CONF=/app/openssl-legacy.cnf
+#   volumes:
+#     - ./openssl-legacy.cnf:/app/openssl-legacy.cnf:ro
+
+openssl_conf = openssl_init
+
+[openssl_init]
+ssl_conf = ssl_configuration
+
+[ssl_configuration]
+system_default = tls_system_default
+
+[tls_system_default]
+# Allow TLS 1.0 and up (default is TLS 1.2)
+MinProtocol = TLSv1
+# SECLEVEL=0 permits SHA1 signatures, small RSA/DH keys, and legacy cipher suites
+CipherString = DEFAULT@SECLEVEL=0
