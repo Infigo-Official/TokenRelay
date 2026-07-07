@@ -70,9 +70,10 @@ ENV ConfigPath=/app/tokenrelay.json
 ENV TOKENRELAY_VERSION=${VERSION}
 ENV BUILD_DATE=${BUILD_DATE}
 
-# Legacy TLS is OFF by default. Set TLS_LEGACY_MODE=true at runtime to reach old servers
-# that fail with "sslv3 alert handshake failure" (weakens TLS for the whole process).
-ENV TLS_LEGACY_MODE=false
+# Legacy TLS is ON by default so the relay connects to old servers out of the box
+# (fixes "sslv3 alert handshake failure"). SECURITY: this weakens TLS for the WHOLE
+# process (allows TLSv1 and SECLEVEL=0). Set TLS_LEGACY_MODE=false to enforce strict TLS.
+ENV TLS_LEGACY_MODE=true
 
 # New Relic APM environment variables (disabled by default)
 # Set NEW_RELIC_ENABLED=true to enable APM monitoring
