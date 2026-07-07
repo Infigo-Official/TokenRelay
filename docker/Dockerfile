@@ -41,6 +41,10 @@ ARG BUILD_DATE
 WORKDIR /app
 COPY --from=publish /app/publish .
 
+# Bake the legacy-TLS OpenSSL config into the image. It is INERT unless the container
+# is started with TLS_LEGACY_MODE=true (the entrypoint points OPENSSL_CONF at it).
+COPY ../docker/openssl-legacy.cnf /app/openssl-legacy.cnf
+
 # Remove any configuration files that might have been published
 RUN rm -f tokenrelay.json
 
@@ -65,6 +69,11 @@ ENV ASPNETCORE_URLS=http://+:80
 ENV ConfigPath=/app/tokenrelay.json
 ENV TOKENRELAY_VERSION=${VERSION}
 ENV BUILD_DATE=${BUILD_DATE}
+
+# Legacy TLS is ON by default so the relay connects to old servers out of the box
+# (fixes "sslv3 alert handshake failure"). SECURITY: this weakens TLS for the WHOLE
+# process (allows TLSv1 and SECLEVEL=0). Set TLS_LEGACY_MODE=false to enforce strict TLS.
+ENV TLS_LEGACY_MODE=true
 
 # New Relic APM environment variables (disabled by default)
 # Set NEW_RELIC_ENABLED=true to enable APM monitoring
@@ -97,6 +106,15 @@ if [ -d "/home/site/certs" ] && [ -n "$(ls -A /home/site/certs/*.crt 2>/dev/null
   echo "Certificate loading completed."\n\
 else\n\
   echo "No custom certificates found in /home/site/certs, skipping certificate loading."\n\
+fi\n\
+\n\
+# Optionally enable legacy TLS for reaching OLD servers (weak ciphers / old protocols).\n\
+# SECURITY: weakens TLS for the WHOLE process. Only for dedicated legacy-endpoint proxies.\n\
+if [ "$TLS_LEGACY_MODE" = "true" ]; then\n\
+  echo "TLS_LEGACY_MODE=true - enabling legacy OpenSSL config (WEAKENS TLS for whole process)"\n\
+  export OPENSSL_CONF=/app/openssl-legacy.cnf\n\
+else\n\
+  echo "TLS_LEGACY_MODE not set - using strict system TLS defaults."\n\
 fi\n\
 \n\
 # Configure New Relic APM based on NEW_RELIC_ENABLED environment variable\n\

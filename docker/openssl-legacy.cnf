@@ -4,19 +4,30 @@
 # .NET on Linux uses the system OpenSSL, which honors OPENSSL_CONF. Point OPENSSL_CONF
 # at this file to lower the security level so old protocols/ciphers/signatures are allowed.
 #
+# This file is baked into the image at /app/openssl-legacy.cnf and is only activated when
+# the container is started with TLS_LEGACY_MODE=true (entrypoint sets OPENSSL_CONF for you).
+#
 # SECURITY: this weakens TLS for the WHOLE process. Only use on a dedicated proxy box
-# whose job is to reach legacy endpoints. Do NOT ship as the default.
+# whose job is to reach legacy endpoints. Do NOT enable as the default.
 #
 # Enable in docker-compose:
 #   environment:
-#     - OPENSSL_CONF=/app/openssl-legacy.cnf
-#   volumes:
-#     - ./openssl-legacy.cnf:/app/openssl-legacy.cnf:ro
+#     - TLS_LEGACY_MODE=true
 
+# This config fully REPLACES the system openssl.cnf when OPENSSL_CONF points here, so it
+# must load the default provider itself (otherwise no crypto algorithms are available).
 openssl_conf = openssl_init
 
 [openssl_init]
+providers = provider_sect
 ssl_conf = ssl_configuration
+
+# Load the default OpenSSL provider (needed for standard TLS since we replaced system config)
+[provider_sect]
+default = default_sect
+
+[default_sect]
+activate = 1
 
 [ssl_configuration]
 system_default = tls_system_default

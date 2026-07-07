@@ -35,6 +35,10 @@ services:
       - TOKENRELAY_CONFIG_MODE=${TOKENRELAY_CONFIG_MODE:-file}
       - TOKENRELAY_CONFIG_JSON=${TOKENRELAY_CONFIG_JSON:-}
       - TOKENRELAY_VERSION=${TOKENRELAY_VERSION:-1.0.0-docker}
+      # Legacy TLS: ON by default so the relay reaches old TLS servers out of the box
+      # (fixes "sslv3 alert handshake failure"). Weakens TLS for the whole process;
+      # set TLS_LEGACY_MODE=false to enforce strict TLS.
+      - TLS_LEGACY_MODE=${TLS_LEGACY_MODE:-true}
       # New Relic APM Configuration (optional - disabled by default)
       # Set NEW_RELIC_ENABLED=true to enable APM monitoring
       - NEW_RELIC_ENABLED=${NEW_RELIC_ENABLED:-false}
@@ -87,6 +91,10 @@ services:
       - TOKENRELAY_CONFIG_MODE=${TOKENRELAY_CONFIG_MODE:-file}
       - TOKENRELAY_CONFIG_JSON=${TOKENRELAY_CONFIG_JSON:-}
       - TOKENRELAY_VERSION=${TOKENRELAY_HUB_VERSION:-latest}
+      # Legacy TLS: ON by default so the relay reaches old TLS servers out of the box
+      # (fixes "sslv3 alert handshake failure"). Weakens TLS for the whole process;
+      # set TLS_LEGACY_MODE=false to enforce strict TLS.
+      - TLS_LEGACY_MODE=${TLS_LEGACY_MODE:-true}
       # New Relic APM Configuration (optional - disabled by default)
       # Set NEW_RELIC_ENABLED=true to enable APM monitoring
       - NEW_RELIC_ENABLED=${NEW_RELIC_ENABLED:-false}
