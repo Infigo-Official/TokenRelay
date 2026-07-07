@@ -519,13 +519,27 @@ public class SystemController : ControllerBase
         catch (Exception ex) when (ex is SocketException or AuthenticationException or IOException)
         {
             _logger.LogWarning(ex, "SystemController: TLS handshake failed for '{Host}:{Port}' from {ClientIP}", host, port, clientIP);
-            return StatusCode(502, new { error = "TLS handshake failed", message = ex.Message, host, port });
+            // net_auth_SSPI is only the generic AuthenticationException wrapper; the real OpenSSL
+            // reason (bad cipher, protocol, cert) lives in the inner exception chain.
+            return StatusCode(502, new { error = "TLS handshake failed", message = ex.Message, detail = FlattenInner(ex), host, port });
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "SystemController: Error performing TLS check for '{Host}:{Port}' from {ClientIP}", host, port, clientIP);
             return StatusCode(500, new { error = "Failed to perform TLS check", message = ex.Message });
         }
+    }
+
+    // Walk the InnerException chain so the real handshake failure (OpenSSL error string on Linux)
+    // is visible instead of the opaque "net_auth_SSPI" outer message.
+    private static string[] FlattenInner(Exception ex)
+    {
+        var messages = new List<string>();
+        for (var inner = ex.InnerException; inner != null; inner = inner.InnerException)
+        {
+            messages.Add($"{inner.GetType().Name}: {inner.Message}");
+        }
+        return messages.ToArray();
     }
 
     private static Dictionary<string, object?> GetCipherInfo(SslStream sslStream)
